@@ -8,25 +8,18 @@ import (
     "net"
     "net/http"
     "net/url"
-    "time"
     "strings"
+    "io"
 )
 
-// maximum number of times that 
-// service discovery and proxy request will be attempted
-// before an error is reported.
-const MAX_ATTEMPTS = 3
-// time to wait between attempts
-const ATTEMPT_DELAY = 100 * time.Millisecond
+type Service url.URL
 
 // ProxyHandler takes an incoming http request
 // proxying it to one of the backend services.
 type ProxyHandler struct {
-    // Discoverer is responsable for returning the
-    // list of all the backend services.
-    Discoverer ServiceDiscoverer
-    // The router decides where the request will be routed.
-    Router RequestRouter
+
+    Balancer LoadBalancer
+
     // The broker is responsable for the authentication
     // and authorization of the request.
     Broker AuthenticationBroker
@@ -49,24 +42,9 @@ var hopHeaders = []string{
 	"Upgrade",
 }
 
-func attempt(maxRetray int, retrayDelay time.Duration, toAttempt func() error) error{
-    i := 0
-    for {
-        err := toAttempt()
-        if err != nil {
-            if i < maxRetray {
-                time.Sleep(retrayDelay)
-                i++
-                continue
-            }
-            return err
-        } else {
-            return nil
-        }
-    }
-}
 
-func (p *ProxyHandler) requestForProxy(inreq *http.Request, proxyService *url.URL) *http.Request{
+
+func (p *ProxyHandler) requestToProxy(inreq *http.Request, proxyService *Service) *http.Request{
     outreq := new(http.Request)
     *outreq = *inreq
 
@@ -111,21 +89,6 @@ func (p *ProxyHandler) requestForProxy(inreq *http.Request, proxyService *url.UR
     return outreq
 }
 
-func (p *ProxyHandler) getProxyServices() ([]url.URL, error){
-    var (
-        err error
-        allServices []url.URL
-    )
-
-    // try at most 3 times waiting 100 milliseconds between each try
-    err = attempt(3, 100*time.Millisecond, func() error{
-        allServices, err = p.Discoverer.Discover()
-        return err
-    })
-
-    return allServices, err
-}
-
 func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
     transport := p.Transport
 
@@ -142,9 +105,14 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
         return
     }
 
-    //TODO: finish up here
+    service, _ := p.Balancer.NextService()
+    outreq := p.requestToProxy(req, service)
 
-    outreq := p.requestForProxy(req, service)
+    res, _ := transport.RoundTrip(outreq)
+    defer res.Body.Close()
+    copyHeader(rw.Header(), res.Header)
+    rw.WriteHeader(res.StatusCode)
+    io.Copy(rw, res.Body)
 }
 
 func copyHeader(dst, src http.Header) {

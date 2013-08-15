@@ -2,7 +2,6 @@ package proxy
 
 import (
     "fmt"
-    "net/url"
 )
 
 // A service discoverer is the component responsable for
@@ -10,7 +9,7 @@ import (
 // It does that by calling Discover() which returns a list of
 // urls to proxy the request to or an error.
 type ServiceDiscoverer interface {
-    Discover() ([]url.URL, error)
+    Discover() ([]Service, error)
 }
 
 // StaticDiscoverer is the simplest possible implementation of
@@ -18,10 +17,10 @@ type ServiceDiscoverer interface {
 // It just returns a predefined list of urls.
 // Its Discover method doesn't return an error unless Services is empty.
 type StaticDiscoverer struct{
-    Services []url.URL
+    Services []Service
 }
 
-func (s *StaticDiscoverer) Discover() (services []url.URL, err error){
+func (s *StaticDiscoverer) Discover() (services []Service, err error){
     if len(s.Services) < 1 {
         return nil, fmt.Errorf("no services are avaible")
     }
