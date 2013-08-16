@@ -105,8 +105,8 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
         return
     }
 
-    service, _ := p.Balancer.NextService()
-    outreq := p.requestToProxy(req, service)
+    service := <-p.Balancer.Services
+    outreq := p.requestToProxy(req, &service)
 
     res, _ := transport.RoundTrip(outreq)
     defer res.Body.Close()
