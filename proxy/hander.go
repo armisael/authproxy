@@ -5,11 +5,12 @@
 package proxy
 
 import (
-    "net"
-    "net/http"
-    "net/url"
-    "strings"
-    "io"
+	"io"
+	"log"
+	"net"
+	"net/http"
+	"net/url"
+	"strings"
 )
 
 type Service url.URL
@@ -17,16 +18,15 @@ type Service url.URL
 // ProxyHandler takes an incoming http request
 // proxying it to one of the backend services.
 type ProxyHandler struct {
+	Balancer *LoadBalancer
 
-    Balancer LoadBalancer
+	// The broker is responsable for the authentication
+	// and authorization of the request.
+	Broker AuthenticationBroker
 
-    // The broker is responsable for the authentication
-    // and authorization of the request.
-    Broker AuthenticationBroker
-
-    // The transport used to perform proxy requests.
+	// The transport used to perform proxy requests.
 	// If nil, http.DefaultTransport is used.
-    Transport http.RoundTripper
+	Transport http.RoundTripper
 }
 
 // Hop-by-hop headers. These are removed when sent to the backend.
@@ -42,22 +42,20 @@ var hopHeaders = []string{
 	"Upgrade",
 }
 
-
-
-func (p *ProxyHandler) requestToProxy(inreq *http.Request, proxyService *Service) *http.Request{
-    outreq := new(http.Request)
-    *outreq = *inreq
+func (p *ProxyHandler) requestToProxy(inreq *http.Request, proxyService *Service) *http.Request {
+	outreq := new(http.Request)
+	*outreq = *inreq
 
 	outreq.Proto = "HTTP/1.1"
 	outreq.ProtoMajor = 1
 	outreq.ProtoMinor = 1
 	outreq.Close = false
-    // force http for now
-    // this proxy is going to work inside a LAN anyway
-    outreq.URL.Scheme = "http"
-    outreq.URL.Host = proxyService.Host
-    outreq.URL.Path = proxyService.Path
-    outreq.URL.RawQuery = proxyService.RawQuery
+	// force http for now
+	// this proxy is going to work inside a LAN anyway
+	outreq.URL.Scheme = "http"
+	outreq.URL.Host = proxyService.Host
+	outreq.URL.Path = proxyService.Path
+	outreq.URL.RawQuery = proxyService.RawQuery
 
 	// Remove hop-by-hop headers to the backend.  Especially
 	// important is "Connection" because we want a persistent
@@ -76,7 +74,7 @@ func (p *ProxyHandler) requestToProxy(inreq *http.Request, proxyService *Service
 		}
 	}
 
-    if clientIP, _, err := net.SplitHostPort(inreq.RemoteAddr); err == nil {
+	if clientIP, _, err := net.SplitHostPort(inreq.RemoteAddr); err == nil {
 		// If we aren't the first proxy retain prior
 		// X-Forwarded-For information as a comma+space
 		// separated list and fold multiple headers into one.
@@ -86,33 +84,37 @@ func (p *ProxyHandler) requestToProxy(inreq *http.Request, proxyService *Service
 		outreq.Header.Set("X-Forwarded-For", clientIP)
 	}
 
-    return outreq
+	return outreq
 }
 
 func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-    transport := p.Transport
+	transport := p.Transport
 
-    if transport == nil {
-        transport = http.DefaultTransport
-    }
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
 
-    authorized, autherr := p.Broker.Authenticate(req)
+	authorized, autherr := p.Broker.Authenticate(req)
 
-    if !authorized {
-        rw.Header().Set("Content-Type", autherr.ContentType)
-        rw.WriteHeader(autherr.Code)
-        rw.Write([]byte(autherr.Message))
-        return
-    }
+	if !authorized {
+		rw.Header().Set("Content-Type", autherr.ContentType)
+		rw.WriteHeader(autherr.Code)
+		rw.Write([]byte(autherr.Message))
+		return
+	}
+	log.Println("before request to services")
+	service := <-p.Balancer.Services
+	log.Println("after request to services")
+	outreq := p.requestToProxy(req, &service)
 
-    service := <-p.Balancer.Services
-    outreq := p.requestToProxy(req, &service)
-
-    res, _ := transport.RoundTrip(outreq)
-    defer res.Body.Close()
-    copyHeader(rw.Header(), res.Header)
-    rw.WriteHeader(res.StatusCode)
-    io.Copy(rw, res.Body)
+	res, err := transport.RoundTrip(outreq)
+	if err != nil {
+		log.Printf("error in getting response from %s: %s", outreq, err)
+	}
+	defer res.Body.Close()
+	copyHeader(rw.Header(), res.Header)
+	rw.WriteHeader(res.StatusCode)
+	io.Copy(rw, res.Body)
 }
 
 func copyHeader(dst, src http.Header) {

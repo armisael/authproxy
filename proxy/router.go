@@ -1,7 +1,7 @@
 package proxy
 
 import (
-    "math/rand"
+	"math/rand"
 )
 
 // The request router is the component that decides
@@ -9,7 +9,7 @@ import (
 // Route takes as an argument every avaiable
 // service and returns the service to proxy the request to.
 type RequestRouter interface {
-    Route ([]Service) Service
+	Route([]Service) Service
 }
 
 // The RandomRouter is the simplest implementation of
@@ -17,8 +17,9 @@ type RequestRouter interface {
 // a service and returns it.
 // The call to Route in a RandomRouter will never return
 // an error.
-type RandomRouter struct {}
-func (r *RandomRouter) Route (urls []Service) Service {
-    rnd := rand.Int() % len(urls)
-    return urls[rnd]
+type RandomRouter struct{}
+
+func (r *RandomRouter) Route(urls []Service) Service {
+	rnd := rand.Int() % len(urls)
+	return urls[rnd]
 }
