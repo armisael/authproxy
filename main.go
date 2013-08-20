@@ -26,17 +26,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("can't fetch initial server list\n")
 	}
-	handler := &proxy.ProxyHandler{
-		Balancer: loadb,
-		Broker:   &proxy.YesBroker{},
-	}
+
+	handler := proxy.NewProxyHandler(loadb, nil, nil)
+
 	server := &http.Server{
 		Addr:    PROXY_PORT,
 		Handler: handler,
 	}
 
 	fmt.Printf("proxy listening on %s\n", server.Addr)
-	//fmt.Println(server.ListenAndServe())
+	fmt.Println(server.ListenAndServe())
 	loadb.WaitStop()
-	panic("dumping goroutine stack")
 }

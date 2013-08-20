@@ -5,6 +5,7 @@
 package proxy
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -30,6 +31,22 @@ type ProxyHandler struct {
 	Transport http.RoundTripper
 }
 
+func NewProxyHandler(l *LoadBalancer, b AuthenticationBroker, t http.RoundTripper) *ProxyHandler {
+	if t == nil {
+		t = http.DefaultTransport
+	}
+
+	if b == nil {
+		b = &YesBroker{}
+	}
+
+	return &ProxyHandler{
+		Balancer:  l,
+		Broker:    b,
+		Transport: t,
+	}
+}
+
 // Hop-by-hop headers. These are removed when sent to the backend.
 // http://www.w3.org/Protocols/rfc2616/rfc2616-sec13.html
 var hopHeaders = []string{
@@ -44,7 +61,7 @@ var hopHeaders = []string{
 }
 
 func (p *ProxyHandler) requestToProxy(inreq *http.Request, proxyService Service) *http.Request {
-	outreq := new(http.Request)
+	var outreq *http.Request = new(http.Request)
 	*outreq = *inreq
 
 	outreq.Proto = "HTTP/1.1"
@@ -94,12 +111,13 @@ func (p *ProxyHandler) writeError(rw http.ResponseWriter, err ResponseError) {
 	rw.Write([]byte(err.Message))
 }
 
-func (p *ProxyHandler) doProxyRequest(req *http.Request) (*http.Response, *ResponseError) {
+func (p *ProxyHandler) doProxyRequest(req *http.Request) (*http.Response, error) {
 	proxyService := <-p.Balancer.Services
 	outReq := p.requestToProxy(req, proxyService)
+	// p.Transport is always set in New function
 	res, err := p.Transport.RoundTrip(outReq)
 	if err != nil {
-		return nil, &ResponseError{
+		return nil, ResponseError{
 			Message:     err.Error(),
 			Code:        http.StatusInternalServerError,
 			ContentType: "text/plain",
@@ -110,30 +128,27 @@ func (p *ProxyHandler) doProxyRequest(req *http.Request) (*http.Response, *Respo
 }
 
 func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	log.Printf("got request from %s\n", req.RemoteAddr)
 	var err error
-	transport := p.Transport
-
-	if transport == nil {
-		transport = http.DefaultTransport
-	}
 
 	authorized, err := p.Broker.Authenticate(req)
 
 	if !authorized {
-		p.writeError(rw, (err.(ResponseError)))
+		p.writeError(rw, err.(ResponseError))
 		return
 	}
 
 	var res *http.Response
 
 	err = attempt(3, 100*time.Millisecond, func() error {
-		var err *ResponseError
 		res, err = p.doProxyRequest(req)
 		return err
 	})
 
 	if err != nil {
-		log.Println("error proxying request for %s to backend. error was: %s", req.URL, err.Error())
+		fmt.Println("prima")
+		log.Println("error proxying request for %s to backend. error was: %s", req.URL, err)
+		fmt.Println("dopo")
 		p.writeError(rw, err.(ResponseError))
 		return
 	}
