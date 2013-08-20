@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"log"
-	"net/url"
 	"sync"
 	"time"
 )
@@ -14,7 +13,7 @@ type LoadBalancer struct {
 	// The router decides where the request will be routed.
 	Router RequestRouter
 	// How often do we update services list
-	FetchDelay time.Duration
+	FetchInterval time.Duration
 	// Services should be requested on this channel
 	Services chan Service
 
@@ -24,19 +23,15 @@ type LoadBalancer struct {
 	quit           chan chan bool
 }
 
-func NewLoadBalancer(d ServiceDiscoverer, r RequestRouter) LoadBalancer {
-	var err error = nil
-	tu, _ := url.Parse("http://google.com")
-	newService, err := Service(*tu), err
+func NewLoadBalancer(d ServiceDiscoverer, r RequestRouter, fi time.Duration) *LoadBalancer {
+	ldb := &LoadBalancer{
+		Discoverer:    d,
+		Router:        r,
+		FetchInterval: fi,
 
-	newServices := []Service{newService}
-	ldb := LoadBalancer{
-		Discoverer:     d,
-		Router:         r,
-		Services:       make(chan Service),
-		started:        false,
-		quit:           make(chan chan bool),
-		cachedServices: newServices,
+		Services: make(chan Service),
+		started:  false,
+		quit:     make(chan chan bool),
 	}
 
 	return ldb
@@ -80,9 +75,9 @@ func (l *LoadBalancer) fetchUnsafe() error {
 func (l *LoadBalancer) fetch() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	//err := l.fetchUnsafe()
-
-	err := attempt(3, 100*time.Millisecond, l.fetchUnsafe)
+	err := l.fetchUnsafe()
+	// should try more than once and be able to configure this
+	// err := attempt(3, 100*time.Millisecond, l.fetchUnsafe)
 	if err != nil {
 		log.Printf("unable to fetch updated service list\n")
 	}
@@ -95,7 +90,7 @@ func (l *LoadBalancer) nextService() Service {
 }
 
 func (l *LoadBalancer) loop() {
-	tick := time.NewTicker(1 * time.Second)
+	tick := time.NewTicker(l.FetchInterval)
 	defer tick.Stop()
 	for {
 		select {
@@ -106,23 +101,6 @@ func (l *LoadBalancer) loop() {
 		case quitchan := <-l.quit:
 			quitchan <- true
 			return
-		}
-	}
-}
-
-func attempt(maxRetray int, retrayDelay time.Duration, attemptFunc func() error) error {
-	var i int = 1
-	for {
-		err := attemptFunc()
-		if err != nil {
-			if i < maxRetray {
-				time.Sleep(retrayDelay)
-				i++
-				continue
-			}
-			return err
-		} else {
-			return nil
 		}
 	}
 }

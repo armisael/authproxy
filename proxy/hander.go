@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 type Service url.URL
@@ -42,7 +43,7 @@ var hopHeaders = []string{
 	"Upgrade",
 }
 
-func (p *ProxyHandler) requestToProxy(inreq *http.Request, proxyService *Service) *http.Request {
+func (p *ProxyHandler) requestToProxy(inreq *http.Request, proxyService Service) *http.Request {
 	outreq := new(http.Request)
 	*outreq = *inreq
 
@@ -87,30 +88,56 @@ func (p *ProxyHandler) requestToProxy(inreq *http.Request, proxyService *Service
 	return outreq
 }
 
+func (p *ProxyHandler) writeError(rw http.ResponseWriter, err ResponseError) {
+	rw.Header().Set("Content-Type", err.ContentType)
+	rw.WriteHeader(err.Code)
+	rw.Write([]byte(err.Message))
+}
+
+func (p *ProxyHandler) doProxyRequest(req *http.Request) (*http.Response, *ResponseError) {
+	proxyService := <-p.Balancer.Services
+	outReq := p.requestToProxy(req, proxyService)
+	res, err := p.Transport.RoundTrip(outReq)
+	if err != nil {
+		return nil, &ResponseError{
+			Message:     err.Error(),
+			Code:        http.StatusInternalServerError,
+			ContentType: "text/plain",
+		}
+	}
+
+	return res, nil
+}
+
 func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	var err error
 	transport := p.Transport
 
 	if transport == nil {
 		transport = http.DefaultTransport
 	}
 
-	authorized, autherr := p.Broker.Authenticate(req)
+	authorized, err := p.Broker.Authenticate(req)
 
 	if !authorized {
-		rw.Header().Set("Content-Type", autherr.ContentType)
-		rw.WriteHeader(autherr.Code)
-		rw.Write([]byte(autherr.Message))
+		p.writeError(rw, (err.(ResponseError)))
 		return
 	}
-	log.Println("before request to services")
-	service := <-p.Balancer.Services
-	log.Println("after request to services")
-	outreq := p.requestToProxy(req, &service)
 
-	res, err := transport.RoundTrip(outreq)
+	var res *http.Response
+
+	err = attempt(3, 100*time.Millisecond, func() error {
+		var err *ResponseError
+		res, err = p.doProxyRequest(req)
+		return err
+	})
+
 	if err != nil {
-		log.Printf("error in getting response from %s: %s", outreq, err)
+		log.Println("error proxying request for %s to backend. error was: %s", req.URL, err.Error())
+		p.writeError(rw, err.(ResponseError))
+		return
 	}
+
 	defer res.Body.Close()
 	copyHeader(rw.Header(), res.Header)
 	rw.WriteHeader(res.StatusCode)

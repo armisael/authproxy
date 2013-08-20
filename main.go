@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
-	"log"
-	//"time"
 	"github.com/gigaroby/httproxy/proxy"
+	"log"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 const PROXY_PORT = ":8080"
@@ -19,6 +19,7 @@ func main() {
 	loadb := proxy.NewLoadBalancer(
 		&proxy.StaticDiscoverer{Services: []proxy.Service{proxy.Service(*u1), proxy.Service(*u2)}},
 		&proxy.RandomRouter{},
+		1*time.Second,
 	)
 
 	err := loadb.Start()
@@ -26,7 +27,7 @@ func main() {
 		log.Fatalf("can't fetch initial server list\n")
 	}
 	handler := &proxy.ProxyHandler{
-		Balancer: &loadb,
+		Balancer: loadb,
 		Broker:   &proxy.YesBroker{},
 	}
 	server := &http.Server{
