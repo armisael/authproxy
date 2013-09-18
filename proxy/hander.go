@@ -15,8 +15,6 @@ import (
 	"time"
 )
 
-type Service url.URL
-
 // ProxyHandler takes an incoming http request
 // proxying it to one of the backend services.
 type ProxyHandler struct {

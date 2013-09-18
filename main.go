@@ -1,23 +1,25 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"github.com/gigaroby/httproxy/proxy"
 	"log"
 	"net/http"
-	"net/url"
 	"time"
 )
 
 const PROXY_PORT = ":8080"
 
+var (
+	serviceFile = flag.String("service-file", "/etc/httproxy/services.conf", "file to load services from")
+)
+
 func main() {
-	var u1, u2 *url.URL
-	u1, _ = url.Parse("http://yasse.eu")
-	u2, _ = url.Parse("http://dandelion.eu")
+	flag.Parse()
 
 	loadb := proxy.NewLoadBalancer(
-		&proxy.StaticDiscoverer{Services: []proxy.Service{proxy.Service(*u1), proxy.Service(*u2)}},
+		&proxy.FileDiscoverer{Path: *serviceFile},
 		&proxy.RandomRouter{},
 		1*time.Second,
 	)
@@ -35,6 +37,7 @@ func main() {
 	}
 
 	fmt.Printf("proxy listening on %s\n", server.Addr)
+	fmt.Printf("proxying requests to: %s", loadb.GetCache())
 	fmt.Println(server.ListenAndServe())
 	loadb.WaitStop()
 }
