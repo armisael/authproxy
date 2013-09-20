@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/gigaroby/httproxy/proxy"
+	"github.com/gigaroby/authproxy/proxy"
 	"log"
 	"net/http"
 	"time"
