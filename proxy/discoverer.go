@@ -1,8 +1,10 @@
 package proxy
 
 import (
-	"bufio"
+	"encoding/csv"
 	"fmt"
+	"io"
+	"log"
 	"net/url"
 	"os"
 	"sync"
@@ -43,15 +45,24 @@ type FileDiscoverer struct {
 }
 
 func (f *FileDiscoverer) Discover() (services []Service, err error) {
-	file, err := os.Open(f.Path)
+	fileReader, err := os.Open(f.Path)
 	if err != nil {
 		return nil, err
 	}
 
-	scanner := bufio.NewScanner(file)
+	reader := csv.NewReader(fileReader)
 
-	for scanner.Scan() {
-		url, err := url.Parse(scanner.Text())
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			continue
+		}
+
+		urlString := record[1]
+
+		url, err := url.Parse(urlString)
 		if err != nil {
 			continue
 		}

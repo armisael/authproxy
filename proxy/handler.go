@@ -69,6 +69,7 @@ func (p *ProxyHandler) requestToProxy(inreq *http.Request, proxyService Service)
 	// this proxy is going to work inside a LAN anyway
 	outreq.URL.Scheme = "http"
 	outreq.URL.Host = proxyService.Host
+	// TODO[vad]: should we append inreq.URL to proxyService one?
 	outreq.URL.Path = proxyService.Path
 
 	// we need to pass query params. In the future we can merge
