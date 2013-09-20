@@ -70,7 +70,10 @@ func (p *ProxyHandler) requestToProxy(inreq *http.Request, proxyService Service)
 	outreq.URL.Scheme = "http"
 	outreq.URL.Host = proxyService.Host
 	outreq.URL.Path = proxyService.Path
-	outreq.URL.RawQuery = proxyService.RawQuery
+
+	// we need to pass query params. In the future we can merge
+	//   inreq.RawQuery and proxyService.RawQuery
+	// outreq.URL.RawQuery = proxyService.RawQuery
 
 	// Remove hop-by-hop headers to the backend.  Especially
 	// important is "Connection" because we want a persistent
