@@ -26,9 +26,12 @@ type ProxyHandler struct {
 	// The transport used to perform proxy requests.
 	// If nil, http.DefaultTransport is used.
 	Transport http.RoundTripper
+
+	// route requests on this path only. 404 the others
+	path string
 }
 
-func NewProxyHandler(l *LoadBalancer, b AuthenticationBroker, t http.RoundTripper) *ProxyHandler {
+func NewProxyHandler(l *LoadBalancer, b AuthenticationBroker, t http.RoundTripper, path string) *ProxyHandler {
 	if t == nil {
 		t = http.DefaultTransport
 	}
@@ -41,6 +44,7 @@ func NewProxyHandler(l *LoadBalancer, b AuthenticationBroker, t http.RoundTrippe
 		Balancer:  l,
 		Broker:    b,
 		Transport: t,
+		path:      path,
 	}
 }
 
@@ -69,7 +73,7 @@ func (p *ProxyHandler) requestToProxy(inreq *http.Request, proxyService Service)
 	// this proxy is going to work inside a LAN anyway
 	outreq.URL.Scheme = "http"
 	outreq.URL.Host = proxyService.Host
-	outreq.URL.Path = proxyService.Path
+	outreq.URL.Path = proxyService.Path + outreq.URL.Path
 
 	// we need to pass query params. In the future we can merge
 	//   inreq.RawQuery and proxyService.RawQuery
@@ -130,6 +134,14 @@ func (p *ProxyHandler) doProxyRequest(req *http.Request) (*http.Response, error)
 func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Printf("got request from %s\n", req.RemoteAddr)
 	var err error
+
+	if !strings.HasPrefix(req.URL.Path, p.path) {
+		rw.WriteHeader(404)
+		rw.Write([]byte("Not found"))
+		return
+	} else { // strip that prefix
+		req.URL.Path = req.URL.Path[len(p.path):]
+	}
 
 	authorized, err := p.Broker.Authenticate(req)
 

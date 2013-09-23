@@ -13,6 +13,7 @@ const PROXY_PORT = ":8080"
 
 var (
 	serviceFile = flag.String("service-file", "/etc/httproxy/services.conf", "file to load services from")
+	subpath     = flag.String("subpath", "/", "allow only requests to this path (and children)")
 )
 
 func main() {
@@ -29,7 +30,7 @@ func main() {
 		log.Fatalf("can't fetch initial server list\n")
 	}
 
-	handler := proxy.NewProxyHandler(loadb, nil, nil)
+	handler := proxy.NewProxyHandler(loadb, nil, nil, *subpath)
 
 	server := &http.Server{
 		Addr:    PROXY_PORT,
