@@ -3,6 +3,8 @@ package proxy
 import (
 	"bytes"
 	"encoding/xml"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -23,6 +25,7 @@ func (r ResponseError) Error() string {
 // incoming requests to decide if they should be routed or not.
 type AuthenticationBroker interface {
 	Authenticate(*http.Request) (bool, *ResponseError)
+	Report(req *http.Request, res *http.Response) error
 }
 
 // YesBroker is to be used for debug only.
@@ -30,6 +33,10 @@ type YesBroker struct{}
 
 func (y *YesBroker) Authenticate(req *http.Request) (toProxy bool, err *ResponseError) {
 	return true, nil
+}
+
+func (y *YesBroker) Report(req *http.Request, res *http.Response) error {
+	return nil
 }
 
 // 3scale broker http://3scale.net
@@ -47,10 +54,7 @@ type ThreeScaleBroker struct {
 }
 
 func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err *ResponseError) {
-	//return false, nil
-	client := &http.Client{
-	// CheckRedirect: redirectPolicyFunc,
-	}
+	client := &http.Client{}
 
 	reqValues := req.URL.Query()
 
@@ -59,7 +63,7 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err 
 	values.Set("app_id", reqValues.Get("$app_id"))
 	values.Set("app_key", reqValues.Get("$app_key"))
 
-	authReq, _ := http.NewRequest("GET", "http://su1.3scale.net/transactions/authorize.xml", nil)
+	authReq, _ := http.NewRequest("GET", "https://su1.3scale.net/transactions/authorize.xml", nil)
 	authReq.URL.RawQuery = values.Encode()
 
 	authRes, err_ := client.Do(authReq)
@@ -81,4 +85,28 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err 
 
 	return status.Authorized, &ResponseError{
 		Message: status.Reason, Status: 401, Code: "api.auth.unauthorized"}
+}
+
+func (brk *ThreeScaleBroker) Report(req *http.Request, res *http.Response) (err error) {
+	reqValues := req.URL.Query()
+	app_id := reqValues.Get("$app_id")
+
+	values := url.Values{
+		"provider_key":                 {brk.ProviderKey},
+		"transactions[0][app_id]":      {app_id},
+		"transactions[0][usage][hits]": {"10"},
+	}
+
+	repRes, err := http.PostForm("http://su1.3scale.net/transactions.xml", values)
+
+	if err != nil {
+		return
+	}
+
+	if repRes.StatusCode == 202 {
+		log.Println("3scale report ok!")
+		return nil
+	}
+
+	return errors.New(fmt.Sprintf("Error reporting to 3scale API: status code %d", repRes.StatusCode))
 }

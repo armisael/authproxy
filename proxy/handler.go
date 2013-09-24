@@ -177,6 +177,12 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return err
 	})
 
+	reportErr := p.Broker.Report(req, res)
+
+	if reportErr != nil {
+		log.Println("Report call failed, but the show must go on!")
+	}
+
 	if err != nil {
 		fmt.Println("prima")
 		log.Println("error proxying request for %s to backend. error was: %s", req.URL, err)
