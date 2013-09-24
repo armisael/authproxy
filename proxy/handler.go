@@ -5,6 +5,7 @@
 package proxy
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -109,10 +110,29 @@ func (p *ProxyHandler) requestToProxy(inreq *http.Request, proxyService Service)
 	return outreq
 }
 
+type JSONError struct {
+	Error   bool                   `json:"error"`
+	Status  int                    `json:"status"`
+	Code    string                 `json:"code"`
+	Message string                 `json:"message"`
+	Data    map[string]interface{} `json:"data"`
+}
+
 func (p *ProxyHandler) writeError(rw http.ResponseWriter, err ResponseError) {
-	rw.Header().Set("Content-Type", err.ContentType)
-	rw.WriteHeader(err.Code)
-	rw.Write([]byte(err.Message))
+	if err.ContentType != "" {
+		rw.Header().Set("Content-Type", err.ContentType)
+	} else {
+		rw.Header().Set("Content-Type", "application/json")
+	}
+	rw.WriteHeader(err.Status)
+	marshalled, _ := json.Marshal(JSONError{
+		Status:  err.Status,
+		Message: err.Message,
+		Error:   true,
+		Data:    make(map[string]interface{}),
+		Code:    err.Code,
+	})
+	rw.Write(marshalled)
 }
 
 func (p *ProxyHandler) doProxyRequest(req *http.Request) (*http.Response, error) {
@@ -123,7 +143,7 @@ func (p *ProxyHandler) doProxyRequest(req *http.Request) (*http.Response, error)
 	if err != nil {
 		return nil, ResponseError{
 			Message:     err.Error(),
-			Code:        http.StatusInternalServerError,
+			Status:      http.StatusInternalServerError,
 			ContentType: "text/plain",
 		}
 	}
@@ -146,7 +166,7 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	authorized, err := p.Broker.Authenticate(req)
 
 	if !authorized {
-		p.writeError(rw, err.(ResponseError))
+		p.writeError(rw, *err.(*ResponseError))
 		return
 	}
 
