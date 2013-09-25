@@ -6,7 +6,6 @@ package proxy
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -184,9 +183,7 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if err != nil {
-		fmt.Println("prima")
 		log.Println("error proxying request for %s to backend. error was: %s", req.URL, err)
-		fmt.Println("dopo")
 		p.writeError(rw, err.(ResponseError))
 		return
 	}
@@ -199,8 +196,7 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 func copyHeader(dst, src http.Header) {
 	for k, vv := range src {
-		for _, v := range vv {
-			dst.Add(k, v)
-		}
+		// don't use Add here, it doesn't preserve the case: https://code.google.com/p/go/issues/detail?id=5022
+		dst[k] = vv
 	}
 }

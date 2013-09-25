@@ -8,6 +8,11 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
+)
+
+const (
+	creditsHeader = "X-DL-credits"
 )
 
 type ResponseError struct {
@@ -88,25 +93,35 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err 
 }
 
 func (brk *ThreeScaleBroker) Report(req *http.Request, res *http.Response) (err error) {
-	reqValues := req.URL.Query()
-	app_id := reqValues.Get("$app_id")
+	app_id := req.URL.Query().Get("$app_id")
+	credits, creditsErr := strconv.Atoi(res.Header.Get(creditsHeader))
+
+	if creditsErr != nil {
+		log.Printf("The response from %s does not contain %s\n", req.URL.String(), creditsHeader)
+		credits = 1
+		res.Header[creditsHeader] = []string{strconv.Itoa(credits)}
+	}
+	hits := credits * 1000000
 
 	values := url.Values{
 		"provider_key":                 {brk.ProviderKey},
 		"transactions[0][app_id]":      {app_id},
-		"transactions[0][usage][hits]": {"10"},
+		"transactions[0][usage][hits]": {strconv.Itoa(hits)},
 	}
 
 	repRes, err := http.PostForm("http://su1.3scale.net/transactions.xml", values)
 
+	// if there was an error in the HTTP request, return it
 	if err != nil {
 		return
 	}
 
+	// if 202, it's ok
 	if repRes.StatusCode == 202 {
 		log.Println("3scale report ok!")
 		return nil
 	}
 
+	// an unmanaged status code from 3scale, report it
 	return errors.New(fmt.Sprintf("Error reporting to 3scale API: status code %d", repRes.StatusCode))
 }
