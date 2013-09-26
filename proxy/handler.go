@@ -10,7 +10,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -63,12 +62,8 @@ var hopHeaders = []string{
 }
 
 func (p *ProxyHandler) requestToProxy(inreq *http.Request, proxyService Service) *http.Request {
-	// TODO[vad]: this is a bit slow, because we can use inreq. But ATM we have issues with:
-	//              outreq.URL.Path = proxyService.Path + outreq.URL.Path
-	//            that concats the same url again and again when the request goes through multiple
-	//            backends
-
-	outreq := &http.Request{}
+	var outreq *http.Request = new(http.Request)
+	*outreq = *inreq
 
 	outreq.Proto = "HTTP/1.1"
 	outreq.ProtoMajor = 1
@@ -76,7 +71,6 @@ func (p *ProxyHandler) requestToProxy(inreq *http.Request, proxyService Service)
 	outreq.Close = false
 	// force http for now
 	// this proxy is going to work inside a LAN anyway
-	outreq.URL = &url.URL{}
 	outreq.URL.Scheme = "http"
 	outreq.URL.Host = proxyService.Host
 	outreq.URL.Path = proxyService.Path + outreq.URL.Path
@@ -84,12 +78,12 @@ func (p *ProxyHandler) requestToProxy(inreq *http.Request, proxyService Service)
 	// we need to pass query params. In the future we can merge
 	//   inreq.RawQuery and proxyService.RawQuery
 	// outreq.URL.RawQuery = proxyService.RawQuery
-	outreq.URL.RawQuery = inreq.URL.RawQuery
 
-	outreq.Header = inreq.Header
 	// Remove hop-by-hop headers to the backend.  Especially
 	// important is "Connection" because we want a persistent
-	// connection, regardless of what the client sent to us.
+	// connection, regardless of what the client sent to us.  This
+	// is modifying the same underlying map from req (shallow
+	// copied above) so we only copy it if necessary.
 	copiedHeaders := false
 	for _, h := range hopHeaders {
 		if outreq.Header.Get(h) != "" {
