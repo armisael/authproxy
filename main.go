@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/gigaroby/authproxy/proxy"
 	"log"
+	"net"
 	"net/http"
 	"time"
 )
@@ -14,8 +15,13 @@ const PROXY_PORT = ":8080"
 var (
 	serviceFile = flag.String("service-file", "/etc/httproxy/services.conf", "file to load services from")
 	subpath     = flag.String("subpath", "/", "allow only requests to this path (and children)")
+	timeout     = time.Duration(2) * time.Second // this should be configurable for every service
 	providerKey string
 )
+
+func dialTimeout(network, addr string) (net.Conn, error) {
+	return net.DialTimeout(network, addr, timeout)
+}
 
 func main() {
 	flag.StringVar(&providerKey, "3scale-provider-key", "", "3scale provider key")
@@ -38,7 +44,11 @@ func main() {
 
 	broker := &proxy.ThreeScaleBroker{ProviderKey: providerKey}
 
-	handler := proxy.NewProxyHandler(loadb, broker, nil, *subpath)
+	transport := http.Transport{
+		Dial: dialTimeout,
+	}
+
+	handler := proxy.NewProxyHandler(loadb, broker, &transport, *subpath)
 
 	server := &http.Server{
 		Addr:    PROXY_PORT,

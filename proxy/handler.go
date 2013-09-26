@@ -134,20 +134,30 @@ func (p *ProxyHandler) writeError(rw http.ResponseWriter, err ResponseError) {
 	rw.Write(marshalled)
 }
 
-func (p *ProxyHandler) doProxyRequest(req *http.Request) (*http.Response, error) {
+func (p *ProxyHandler) doProxyRequest(req *http.Request) (res *http.Response, outErr error) {
 	proxyService := <-p.Balancer.Services
 	outReq := p.requestToProxy(req, proxyService)
+
 	// p.Transport is always set in New function
 	res, err := p.Transport.RoundTrip(outReq)
 	if err != nil {
-		return nil, ResponseError{
-			Message:     err.Error(),
-			Status:      http.StatusInternalServerError,
-			ContentType: "text/plain",
+		netError, ok := err.(net.Error)
+		if ok && netError.Timeout() {
+			outErr = ResponseError{
+				Message: err.Error(),
+				Status:  http.StatusGatewayTimeout,
+				Code:    "api.net.timeout",
+			}
+		} else {
+			outErr = ResponseError{
+				Message: err.Error(),
+				Status:  http.StatusBadGateway,
+				Code:    "api.net.badGateway",
+			}
 		}
 	}
 
-	return res, nil
+	return
 }
 
 func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -176,16 +186,16 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return err
 	})
 
+	if err != nil {
+		log.Println("error proxying request for", req.URL, "to backend. error was:", err)
+		p.writeError(rw, err.(ResponseError))
+		return
+	}
+
 	reportErr := p.Broker.Report(req, res)
 
 	if reportErr != nil {
 		log.Println("Report call failed, but the show must go on!")
-	}
-
-	if err != nil {
-		log.Println("error proxying request for %s to backend. error was: %s", req.URL, err)
-		p.writeError(rw, err.(ResponseError))
-		return
 	}
 
 	defer res.Body.Close()
