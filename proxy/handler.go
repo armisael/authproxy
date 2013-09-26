@@ -69,11 +69,16 @@ func (p *ProxyHandler) requestToProxy(inreq *http.Request, proxyService Service)
 	outreq.ProtoMajor = 1
 	outreq.ProtoMinor = 1
 	outreq.Close = false
+
+	// copy inreq to outreq
+	url := *inreq.URL
+	outreq.URL = &url
+
 	// force http for now
 	// this proxy is going to work inside a LAN anyway
 	outreq.URL.Scheme = "http"
 	outreq.URL.Host = proxyService.Host
-	outreq.URL.Path = proxyService.Path + outreq.URL.Path
+	outreq.URL.Path = proxyService.Path + inreq.URL.Path
 
 	// we need to pass query params. In the future we can merge
 	//   inreq.RawQuery and proxyService.RawQuery
