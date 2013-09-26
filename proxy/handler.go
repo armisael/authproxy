@@ -148,17 +148,12 @@ func (p *ProxyHandler) doProxyRequest(req *http.Request) (res *http.Response, ou
 	if err != nil {
 		netError, ok := err.(net.Error)
 		if ok && netError.Timeout() {
-			outErr = ResponseError{
-				Message: err.Error(),
-				Status:  http.StatusGatewayTimeout,
-				Code:    "api.net.timeout",
-			}
-		} else {
-			outErr = ResponseError{
-				Message: err.Error(),
-				Status:  http.StatusBadGateway,
-				Code:    "api.net.badGateway",
-			}
+			log.Println("The Backend timed out: ", err.Error())
+		}
+		outErr = ResponseError{
+			Message: err.Error(),
+			Status:  http.StatusBadGateway,
+			Code:    "api.net.badGateway",
 		}
 	}
 
