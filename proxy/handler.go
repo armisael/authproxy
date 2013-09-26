@@ -164,9 +164,15 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Printf("got request from %s\n", req.RemoteAddr)
 	var err error
 
+	if req.URL.Path == "/status" {
+		rw.WriteHeader(200)
+		rw.Write([]byte("ok"))
+		return
+	}
+
 	if !strings.HasPrefix(req.URL.Path, p.path) {
-		rw.WriteHeader(404)
-		rw.Write([]byte("Not found"))
+		p.writeError(rw, ResponseError{Message: "Not found",
+			Status: 404, Code: "api.notFound"})
 		return
 	} else { // strip that prefix
 		req.URL.Path = req.URL.Path[len(p.path):]

@@ -62,11 +62,18 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err 
 	client := &http.Client{}
 
 	reqValues := req.URL.Query()
+	appId := reqValues.Get("$app_id")
+	appKey := reqValues.Get("$app_key")
 
 	values := url.Values{}
 	values.Set("provider_key", brk.ProviderKey)
-	values.Set("app_id", reqValues.Get("$app_id"))
-	values.Set("app_key", reqValues.Get("$app_key"))
+	values.Set("app_id", appId)
+	values.Set("app_key", appKey)
+
+	if appKey == "" || appKey == "" {
+		return false, &ResponseError{Message: "missing parameters $app_id and/or $app_key",
+			Status: 401, Code: "api.auth.unauthorized"}
+	}
 
 	authReq, _ := http.NewRequest("GET", "https://su1.3scale.net/transactions/authorize.xml", nil)
 	authReq.URL.RawQuery = values.Encode()
