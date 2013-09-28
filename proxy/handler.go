@@ -7,7 +7,6 @@ package proxy
 import (
 	"encoding/json"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -148,7 +147,7 @@ func (p *ProxyHandler) doProxyRequest(req *http.Request) (res *http.Response, ou
 	if err != nil {
 		netError, ok := err.(net.Error)
 		if ok && netError.Timeout() {
-			log.Println("The Backend timed out: ", err.Error())
+			logger.Info("The Backend timed out: ", err.Error())
 		}
 		outErr = ResponseError{
 			Message: err.Error(),
@@ -161,7 +160,7 @@ func (p *ProxyHandler) doProxyRequest(req *http.Request) (res *http.Response, ou
 }
 
 func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	log.Printf("got request from %s\n", req.RemoteAddr)
+	logger.Infof("got request from %s", req.RemoteAddr)
 	var err error
 
 	if req.URL.Path == "/status" {
@@ -193,7 +192,7 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	})
 
 	if err != nil {
-		log.Println("error proxying request for", req.URL, "to backend. error was:", err)
+		logger.Err("error proxying request for", req.URL, "to backend. error was:", err)
 		p.writeError(rw, err.(ResponseError))
 		return
 	}
@@ -201,7 +200,7 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	reportErr := p.Broker.Report(req, res)
 
 	if reportErr != nil {
-		log.Println("Report call failed, but the show must go on!")
+		logger.Err("Report call failed, but the show must go on!")
 	}
 
 	defer res.Body.Close()

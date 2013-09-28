@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"log"
 	"sync"
 	"time"
 )
@@ -85,7 +84,7 @@ func (l *LoadBalancer) fetch() {
 	// should try more than once and be able to configure this
 	// err := attempt(3, 100*time.Millisecond, l.fetchUnsafe)
 	if err != nil {
-		log.Printf("unable to fetch updated service list\n")
+		logger.Info("unable to fetch updated service list")
 	}
 }
 

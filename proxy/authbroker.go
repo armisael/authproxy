@@ -5,7 +5,6 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -81,7 +80,7 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err 
 	authRes, err_ := client.Do(authReq)
 	if err_ != nil {
 		//TODO[vad]: report 3scale's down
-		log.Fatalf("Error connecting to 3scale: %s\n", err_)
+		logger.Fatal("Error connecting to 3scale: ", err.Error())
 	}
 	defer authRes.Body.Close()
 
@@ -104,7 +103,7 @@ func (brk *ThreeScaleBroker) Report(req *http.Request, res *http.Response) (err 
 	credits, creditsErr := strconv.Atoi(res.Header.Get(creditsHeader))
 
 	if creditsErr != nil {
-		log.Printf("The response from %s does not contain %s\n", req.URL.String(), creditsHeader)
+		logger.Info("The response from ", req.URL.String(), " does not contain ", creditsHeader)
 		credits = 1
 		res.Header[creditsHeader] = []string{strconv.Itoa(credits)}
 	}
@@ -125,7 +124,7 @@ func (brk *ThreeScaleBroker) Report(req *http.Request, res *http.Response) (err 
 
 	// if 202, it's ok
 	if repRes.StatusCode == 202 {
-		log.Println("3scale report ok!")
+		logger.Debug("3scale report ok!")
 		return nil
 	}
 

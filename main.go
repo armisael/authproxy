@@ -2,9 +2,8 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"github.com/gigaroby/authproxy/proxy"
-	"log"
+	"github.com/vad/go-bunyan/bunyan"
 	"net"
 	"net/http"
 	"time"
@@ -17,6 +16,7 @@ var (
 	subpath     = flag.String("subpath", "/", "allow only requests to this path (and children)")
 	timeout     = time.Duration(2) * time.Second // this should be configurable for every service
 	providerKey string
+	logger      = bunyan.NewLogger("authproxy.main")
 )
 
 func dialTimeout(network, addr string) (net.Conn, error) {
@@ -28,7 +28,7 @@ func main() {
 	flag.Parse()
 
 	if providerKey == "" {
-		log.Fatalln("Missing parameter -3scale-provider-key")
+		logger.Fatal("Missing parameter --3scale-provider-key")
 	}
 
 	loadb := proxy.NewLoadBalancer(
@@ -39,7 +39,7 @@ func main() {
 
 	err := loadb.Start()
 	if err != nil {
-		log.Fatalf("can't fetch initial server list\n")
+		logger.Fatal("can't fetch initial server list")
 	}
 
 	broker := &proxy.ThreeScaleBroker{ProviderKey: providerKey}
@@ -55,8 +55,8 @@ func main() {
 		Handler: handler,
 	}
 
-	fmt.Printf("proxy listening on %s\n", server.Addr)
-	fmt.Printf("proxying requests to: %s", loadb.GetCache())
-	fmt.Println(server.ListenAndServe())
+	logger.Infof("proxy listening on %s", server.Addr)
+	logger.Infof("proxying requests to: %s", loadb.GetCache())
+	logger.Info(server.ListenAndServe())
 	loadb.WaitStop()
 }
