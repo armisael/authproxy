@@ -5,6 +5,7 @@
 package proxy
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net"
@@ -138,8 +139,17 @@ func (p *ProxyHandler) writeError(rw http.ResponseWriter, err ResponseError) {
 	rw.Write(marshalled)
 }
 
+type ClosingReader struct {
+	bytes.Reader
+}
+
+func (rnc ClosingReader) Close() error {
+	return nil
+}
+
 func (p *ProxyHandler) doProxyRequest(req *http.Request) (res *http.Response, outErr error) {
 	proxyService := <-p.Balancer.Services
+
 	outReq := p.requestToProxy(req, proxyService)
 
 	// p.Transport is always set in New function
@@ -149,6 +159,7 @@ func (p *ProxyHandler) doProxyRequest(req *http.Request) (res *http.Response, ou
 		if ok && netError.Timeout() {
 			logger.Info("The Backend timed out: ", err.Error())
 		}
+
 		outErr = ResponseError{
 			Message: err.Error(),
 			Status:  http.StatusBadGateway,
@@ -160,8 +171,14 @@ func (p *ProxyHandler) doProxyRequest(req *http.Request) (res *http.Response, ou
 }
 
 func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	logger.Infof("got request from %s", req.RemoteAddr)
+	logger.Info("got request from ", req.RemoteAddr)
 	var err error
+
+	//TODO[vad]: limit the buffer
+	var buffer bytes.Buffer
+	buffer.ReadFrom(req.Body)
+	body := ClosingReader{*bytes.NewReader(buffer.Bytes())}
+	req.Body = &body
 
 	if req.URL.Path == "/status" {
 		rw.WriteHeader(200)
@@ -187,6 +204,7 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	var res *http.Response
 
 	err = attempt(3, 100*time.Millisecond, func() error {
+		body.Seek(0, 0)
 		res, err = p.doProxyRequest(req)
 		return err
 	})
@@ -196,14 +214,12 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		p.writeError(rw, err.(ResponseError))
 		return
 	}
+	defer res.Body.Close()
 
-	reportErr := p.Broker.Report(req, res)
-
-	if reportErr != nil {
+	if reportErr := p.Broker.Report(req, res); reportErr != nil {
 		logger.Err("Report call failed, but the show must go on!")
 	}
 
-	defer res.Body.Close()
 	copyHeader(rw.Header(), res.Header)
 	rw.WriteHeader(res.StatusCode)
 	io.Copy(rw, res.Body)
