@@ -192,7 +192,7 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	})
 
 	if err != nil {
-		logger.Err("error proxying request for", req.URL, "to backend. error was:", err)
+		logger.Err("error proxying request for ", req.URL, " to backend. error was: ", err)
 		p.writeError(rw, err.(ResponseError))
 		return
 	}

@@ -3,7 +3,6 @@ package proxy
 import (
 	"bytes"
 	"encoding/xml"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -57,12 +56,28 @@ type ThreeScaleBroker struct {
 	ProviderKey string
 }
 
+func parseRequestForApp(req *http.Request) (appId, appKey string) {
+	switch req.Method {
+	case "GET":
+		{
+			reqValues := req.URL.Query()
+			appId = reqValues.Get("$app_id")
+			appKey = reqValues.Get("$app_key")
+		}
+	default: // POST or PUT
+		{
+			appId = req.PostFormValue("$app_id")
+			appKey = req.PostFormValue("$app_key")
+		}
+	}
+
+	return
+}
+
 func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err *ResponseError) {
 	client := &http.Client{}
 
-	reqValues := req.URL.Query()
-	appId := reqValues.Get("$app_id")
-	appKey := reqValues.Get("$app_key")
+	appId, appKey := parseRequestForApp(req)
 
 	values := url.Values{}
 	values.Set("provider_key", brk.ProviderKey)
@@ -99,7 +114,7 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err 
 }
 
 func (brk *ThreeScaleBroker) Report(req *http.Request, res *http.Response) (err error) {
-	app_id := req.URL.Query().Get("$app_id")
+	appId, _ := parseRequestForApp(req)
 	credits, creditsErr := strconv.Atoi(res.Header.Get(creditsHeader))
 
 	if creditsErr != nil {
@@ -111,7 +126,7 @@ func (brk *ThreeScaleBroker) Report(req *http.Request, res *http.Response) (err 
 
 	values := url.Values{
 		"provider_key":                 {brk.ProviderKey},
-		"transactions[0][app_id]":      {app_id},
+		"transactions[0][app_id]":      {appId},
 		"transactions[0][usage][hits]": {strconv.Itoa(hits)},
 	}
 
@@ -129,5 +144,6 @@ func (brk *ThreeScaleBroker) Report(req *http.Request, res *http.Response) (err 
 	}
 
 	// an unmanaged status code from 3scale, report it
-	return errors.New(fmt.Sprintf("Error reporting to 3scale API: status code %d", repRes.StatusCode))
+	return fmt.Errorf("Error reporting to 3scale API for app %s: status code %d", appId,
+		repRes.StatusCode)
 }
