@@ -194,7 +194,7 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		req.URL.Path = req.URL.Path[len(p.path):]
 	}
 
-	authorized, err := p.Broker.Authenticate(req)
+	authorized, err, msg := p.Broker.Authenticate(req)
 
 	if !authorized {
 		p.writeError(rw, *err.(*ResponseError))
@@ -216,7 +216,7 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	defer res.Body.Close()
 
-	if reportErr := p.Broker.Report(req, res); reportErr != nil {
+	if reportErr := p.Broker.Report(req, res, msg); reportErr != nil {
 		logger.Err("Report call failed, but the show must go on!")
 	}
 

@@ -10,7 +10,9 @@ import (
 )
 
 const (
-	creditsHeader = "X-DL-credits"
+	creditsHeader      = "X-DL-credits"
+	creditsLeftHeader  = "X-DL-credits-left"
+	creditsResetHeader = "X-DL-credits-reset"
 )
 
 type ResponseError struct {
@@ -24,25 +26,33 @@ func (r ResponseError) Error() string {
 	return r.Message
 }
 
+// a cache to pass parameters between Authenticate and Report
+type BrokerMessage map[string]string
+
 // A authentication broker is the component that authenticates
 // incoming requests to decide if they should be routed or not.
 type AuthenticationBroker interface {
-	Authenticate(*http.Request) (bool, *ResponseError)
-	Report(req *http.Request, res *http.Response) error
+	Authenticate(*http.Request) (bool, *ResponseError, BrokerMessage)
+	Report(*http.Request, *http.Response, BrokerMessage) error
 }
 
 // YesBroker is to be used for debug only.
 type YesBroker struct{}
 
-func (y *YesBroker) Authenticate(req *http.Request) (toProxy bool, err *ResponseError) {
-	return true, nil
+func (y *YesBroker) Authenticate(req *http.Request) (toProxy bool, err *ResponseError, msg BrokerMessage) {
+	toProxy = true
+	return
 }
 
-func (y *YesBroker) Report(req *http.Request, res *http.Response) error {
-	return nil
+func (y *YesBroker) Report(req *http.Request, res *http.Response, msg BrokerMessage) (err error) {
+	return
 }
 
 // 3scale broker http://3scale.net
+type ThreeScaleBroker struct {
+	ProviderKey string
+	Transport   http.RoundTripper
+}
 
 type ThreeXMLStatus struct {
 	XMLName    xml.Name
@@ -50,11 +60,6 @@ type ThreeXMLStatus struct {
 	Authorized bool   `xml:"authorized"`
 	Reason     string `xml:"reason"`
 	Plan       string `xml:"plan"`
-}
-
-type ThreeScaleBroker struct {
-	ProviderKey string
-	Transport   http.RoundTripper
 }
 
 func NewThreeScaleBroker(provKey string, transport http.RoundTripper) *ThreeScaleBroker {
@@ -85,7 +90,7 @@ func parseRequestForApp(req *http.Request) (appId, appKey string) {
 	return
 }
 
-func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err *ResponseError) {
+func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err *ResponseError, msg BrokerMessage) {
 	client := &http.Client{Transport: brk.Transport}
 
 	appId, appKey := parseRequestForApp(req)
@@ -96,9 +101,12 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err 
 	values.Set("app_key", appKey)
 
 	if appKey == "" || appKey == "" {
-		return false, &ResponseError{Message: "missing parameters $app_id and/or $app_key",
+		err = &ResponseError{Message: "missing parameters $app_id and/or $app_key",
 			Status: 401, Code: "api.auth.unauthorized"}
+		return
 	}
+	msg = make(map[string]string)
+	msg["appId"] = appId
 
 	authReq, _ := http.NewRequest("GET", "https://su1.3scale.net/transactions/authorize.xml", nil)
 	authReq.URL.RawQuery = values.Encode()
@@ -107,11 +115,11 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err 
 	if err_ != nil {
 		//TODO[vad]: report 3scale's down
 		logger.Err("Error connecting to 3scale: ", err.Error())
-		return false, nil
+		return
 	}
 	if authRes.Body == nil {
 		logger.Err("Broken response from 3scale (empty body)")
-		return false, nil
+		return
 	}
 	defer authRes.Body.Close()
 
@@ -122,15 +130,18 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err 
 	xml.Unmarshal(buf.Bytes(), &status)
 
 	if status.XMLName.Local == "error" {
-		return false, &ResponseError{Message: status.Data, Status: 401, Code: "api.auth.unauthorized"}
+		err = &ResponseError{Message: status.Data, Status: 401, Code: "api.auth.unauthorized"}
+		return
 	}
 
-	return status.Authorized, &ResponseError{
-		Message: status.Reason, Status: 401, Code: "api.auth.unauthorized"}
+	toProxy = status.Authorized
+	err = &ResponseError{Message: status.Reason, Status: 401, Code: "api.auth.unauthorized"}
+
+	return
 }
 
-func (brk *ThreeScaleBroker) Report(req *http.Request, res *http.Response) (err error) {
-	appId, _ := parseRequestForApp(req)
+func (brk *ThreeScaleBroker) Report(req *http.Request, res *http.Response, msg BrokerMessage) (err error) {
+	appId := msg["appId"]
 	credits, creditsErr := strconv.Atoi(res.Header.Get(creditsHeader))
 
 	if creditsErr != nil {
@@ -146,7 +157,7 @@ func (brk *ThreeScaleBroker) Report(req *http.Request, res *http.Response) (err 
 		"transactions[0][usage][hits]": {strconv.Itoa(hits)},
 	}
 
-	repRes, err := http.PostForm("http://su1.3scale.net/transactions.xml", values)
+	repRes, err := http.PostForm("https://su1.3scale.net/transactions.xml", values)
 
 	// if there was an error in the HTTP request, return it
 	if err != nil {
