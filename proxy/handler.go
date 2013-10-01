@@ -180,12 +180,6 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	body := ClosingReader{*bytes.NewReader(buffer.Bytes())}
 	req.Body = &body
 
-	if req.URL.Path == "/status" {
-		rw.WriteHeader(200)
-		rw.Write([]byte("ok"))
-		return
-	}
-
 	if !strings.HasPrefix(req.URL.Path, p.path) {
 		p.writeError(rw, ResponseError{Message: "Not found",
 			Status: 404, Code: "api.notFound"})

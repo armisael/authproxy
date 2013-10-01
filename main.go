@@ -23,6 +23,11 @@ func dialTimeout(network, addr string) (net.Conn, error) {
 	return net.DialTimeout(network, addr, timeout)
 }
 
+func status(rw http.ResponseWriter, req *http.Request) {
+	rw.WriteHeader(200)
+	rw.Write([]byte("ok"))
+}
+
 func main() {
 	flag.StringVar(&providerKey, "3scale-provider-key", "", "3scale provider key")
 	flag.Parse()
@@ -48,11 +53,15 @@ func main() {
 		Dial: dialTimeout,
 	}
 
-	handler := proxy.NewProxyHandler(loadb, broker, transport, *subpath)
+	proxyHandler := proxy.NewProxyHandler(loadb, broker, transport, *subpath)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/status", status)
+	mux.Handle("/", proxyHandler)
 
 	server := &http.Server{
 		Addr:    PROXY_PORT,
-		Handler: handler,
+		Handler: mux,
 	}
 
 	logger.Infof("proxy listening on %s", server.Addr)

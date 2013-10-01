@@ -110,6 +110,7 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err 
 	values.Set("provider_key", brk.ProviderKey)
 	values.Set("app_id", appId)
 	values.Set("app_key", appKey)
+	// TODO[vad]: we should send Hits=1 too. ATM we go down to -1 requests left (and we show it to the user!)
 
 	if appKey == "" || appKey == "" {
 		err = &ResponseError{Message: "missing parameters $app_id and/or $app_key",
