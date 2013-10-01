@@ -54,6 +54,17 @@ type ThreeXMLStatus struct {
 
 type ThreeScaleBroker struct {
 	ProviderKey string
+	Transport   http.RoundTripper
+}
+
+func NewThreeeScaleBroker(provKey string, transport http.RoundTripper) *ThreeScaleBroker {
+	if transport == nil {
+		transport = &http.Transport{
+		// TODO[vad]: use the dial timeout from main
+		// Dial: dialTimeout,
+		}
+	}
+	return &ThreeScaleBroker{ProviderKey: provKey, Transport: transport}
 }
 
 func parseRequestForApp(req *http.Request) (appId, appKey string) {
@@ -75,7 +86,7 @@ func parseRequestForApp(req *http.Request) (appId, appKey string) {
 }
 
 func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err *ResponseError) {
-	client := &http.Client{}
+	client := &http.Client{Transport: brk.Transport}
 
 	appId, appKey := parseRequestForApp(req)
 
@@ -95,7 +106,12 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err 
 	authRes, err_ := client.Do(authReq)
 	if err_ != nil {
 		//TODO[vad]: report 3scale's down
-		logger.Fatal("Error connecting to 3scale: ", err.Error())
+		logger.Err("Error connecting to 3scale: ", err.Error())
+		return false, nil
+	}
+	if authRes.Body == nil {
+		logger.Err("Broken response from 3scale (empty body)")
+		return false, nil
 	}
 	defer authRes.Body.Close()
 

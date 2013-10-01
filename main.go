@@ -42,13 +42,13 @@ func main() {
 		logger.Fatal("can't fetch initial server list")
 	}
 
-	broker := &proxy.ThreeScaleBroker{ProviderKey: providerKey}
+	broker := proxy.NewThreeScaleBroker{providerKey}
 
-	transport := http.Transport{
+	transport := &http.Transport{
 		Dial: dialTimeout,
 	}
 
-	handler := proxy.NewProxyHandler(loadb, broker, &transport, *subpath)
+	handler := proxy.NewProxyHandler(loadb, broker, transport, *subpath)
 
 	server := &http.Server{
 		Addr:    PROXY_PORT,
