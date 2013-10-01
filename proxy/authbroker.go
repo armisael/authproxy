@@ -57,7 +57,7 @@ type ThreeScaleBroker struct {
 	Transport   http.RoundTripper
 }
 
-func NewThreeeScaleBroker(provKey string, transport http.RoundTripper) *ThreeScaleBroker {
+func NewThreeScaleBroker(provKey string, transport http.RoundTripper) *ThreeScaleBroker {
 	if transport == nil {
 		transport = &http.Transport{
 		// TODO[vad]: use the dial timeout from main

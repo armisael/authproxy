@@ -42,7 +42,7 @@ func main() {
 		logger.Fatal("can't fetch initial server list")
 	}
 
-	broker := proxy.NewThreeScaleBroker{providerKey}
+	broker := proxy.NewThreeScaleBroker(providerKey, nil)
 
 	transport := &http.Transport{
 		Dial: dialTimeout,

@@ -9,19 +9,21 @@ import (
 	"testing"
 )
 
-type RecordTripper struct {
-	req *http.Request
+type RecordTransport struct {
+	Requests    []*http.Request
+	LastRequest *http.Request
 }
 
-func (rec *RecordTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	rec.req = req
+func (rec *RecordTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	rec.LastRequest = req
+	rec.Requests = append(rec.Requests, req)
 	body := ioutil.NopCloser(bytes.NewBuffer([]byte("")))
 	return &http.Response{Status: "500", Body: body}, nil
 }
 
 func TestThreeScaleBrokerPOSTRequests(t *testing.T) {
-	recorder := new(RecordTripper)
-	broker := NewThreeeScaleBroker("providerKey", recorder)
+	recorder := new(RecordTransport)
+	broker := NewThreeScaleBroker("providerKey", recorder)
 
 	data := url.Values{}
 	data.Set("$app_id", "MyApp")
@@ -31,7 +33,7 @@ func TestThreeScaleBrokerPOSTRequests(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	broker.Authenticate(req)
 
-	recorded := recorder.req
+	recorded := recorder.LastRequest
 
 	if recorded.Method != "GET" {
 		t.Error("Expected GET to 3scale, got", req.Method)
