@@ -216,7 +216,7 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	defer res.Body.Close()
 
-	if reportErr := p.Broker.Report(req, res, msg); reportErr != nil {
+	if reportErr := p.Broker.Report(res, msg); reportErr != nil {
 		logger.Err("Report call failed, but the show must go on!")
 	}
 

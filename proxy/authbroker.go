@@ -10,9 +10,10 @@ import (
 )
 
 const (
-	creditsHeader      = "X-DL-credits"
-	creditsLeftHeader  = "X-DL-credits-left"
-	creditsResetHeader = "X-DL-credits-reset"
+	creditsHeader            = "X-DL-credits"
+	creditsLeftHeader        = "X-DL-credits-left"
+	creditsResetHeader       = "X-DL-credits-reset"
+	threeScaleHitsMultiplier = int(1e6)
 )
 
 type ResponseError struct {
@@ -33,7 +34,7 @@ type BrokerMessage map[string]string
 // incoming requests to decide if they should be routed or not.
 type AuthenticationBroker interface {
 	Authenticate(*http.Request) (bool, *ResponseError, BrokerMessage)
-	Report(*http.Request, *http.Response, BrokerMessage) error
+	Report(*http.Response, BrokerMessage) error
 }
 
 // YesBroker is to be used for debug only.
@@ -44,7 +45,7 @@ func (y *YesBroker) Authenticate(req *http.Request) (toProxy bool, err *Response
 	return
 }
 
-func (y *YesBroker) Report(req *http.Request, res *http.Response, msg BrokerMessage) (err error) {
+func (y *YesBroker) Report(res *http.Response, msg BrokerMessage) (err error) {
 	return
 }
 
@@ -54,12 +55,22 @@ type ThreeScaleBroker struct {
 	Transport   http.RoundTripper
 }
 
+type ThreeXMLUsageReport struct {
+	MaxValue     int    `xml:"max_value"`
+	CurrentValue int    `xml:"current_value"`
+	PeriodStart  string `xml:"period_start"`
+	PeriodEnd    string `xml:"period_end"`
+	Metric       string `xml:"metric,attr"`
+	Period       string `xml:"period,attr"`
+}
+
 type ThreeXMLStatus struct {
-	XMLName    xml.Name
-	Data       string `xml:",chardata"` // text-content of the root element
-	Authorized bool   `xml:"authorized"`
-	Reason     string `xml:"reason"`
-	Plan       string `xml:"plan"`
+	XMLName      xml.Name
+	Data         string                `xml:",chardata"` // text-content of the root element
+	Authorized   bool                  `xml:"authorized"`
+	Reason       string                `xml:"reason"`
+	Plan         string                `xml:"plan"`
+	UsageReports []ThreeXMLUsageReport `xml:"usage_reports>usage_report"`
 }
 
 func NewThreeScaleBroker(provKey string, transport http.RoundTripper) *ThreeScaleBroker {
@@ -105,8 +116,9 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err 
 			Status: 401, Code: "api.auth.unauthorized"}
 		return
 	}
-	msg = make(map[string]string)
-	msg["appId"] = appId
+	msg = map[string]string{
+		"appId": appId,
+	}
 
 	authReq, _ := http.NewRequest("GET", "https://su1.3scale.net/transactions/authorize.xml", nil)
 	authReq.URL.RawQuery = values.Encode()
@@ -134,22 +146,48 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err 
 		return
 	}
 
+	// create a new slice with only daily limits
+	var dailyUsageReports []ThreeXMLUsageReport
+	for _, report := range status.UsageReports {
+		if report.Period == "day" {
+			dailyUsageReports = append(dailyUsageReports, report)
+		}
+	}
+
+	if len(dailyUsageReports) != 1 {
+		logger.Warning("Missing/too much usage reports for app_id ", appId, ". Expected 1, got ", len(dailyUsageReports))
+	} else {
+		msg["creditsLeft"] = strconv.Itoa(dailyUsageReports[0].MaxValue - dailyUsageReports[0].CurrentValue)
+		msg["creditsReset"] = dailyUsageReports[0].PeriodEnd
+	}
+
 	toProxy = status.Authorized
 	err = &ResponseError{Message: status.Reason, Status: 401, Code: "api.auth.unauthorized"}
 
 	return
 }
 
-func (brk *ThreeScaleBroker) Report(req *http.Request, res *http.Response, msg BrokerMessage) (err error) {
+func (brk *ThreeScaleBroker) Report(res *http.Response, msg BrokerMessage) (err error) {
+	client := &http.Client{Transport: brk.Transport}
+
 	appId := msg["appId"]
 	credits, creditsErr := strconv.Atoi(res.Header.Get(creditsHeader))
 
 	if creditsErr != nil {
-		logger.Info("The response from ", req.URL.String(), " does not contain ", creditsHeader)
+		if res.Request != nil {
+			logger.Info("The response from ", res.Request.URL.String(), " does not contain ", creditsHeader)
+		}
 		credits = 1
 		res.Header[creditsHeader] = []string{strconv.Itoa(credits)}
 	}
-	hits := credits * 1000000
+	hits := credits * threeScaleHitsMultiplier
+	if msg["creditsLeft"] != "" {
+		creditsLeft, _ := strconv.Atoi(msg["creditsLeft"])
+		res.Header[creditsLeftHeader] = []string{strconv.Itoa((creditsLeft - hits) / threeScaleHitsMultiplier)}
+	}
+	if msg["creditsReset"] != "" {
+		res.Header[creditsResetHeader] = []string{msg["creditsReset"]}
+	}
 
 	values := url.Values{
 		"provider_key":                 {brk.ProviderKey},
@@ -157,7 +195,7 @@ func (brk *ThreeScaleBroker) Report(req *http.Request, res *http.Response, msg B
 		"transactions[0][usage][hits]": {strconv.Itoa(hits)},
 	}
 
-	repRes, err := http.PostForm("https://su1.3scale.net/transactions.xml", values)
+	repRes, err := client.PostForm("https://su1.3scale.net/transactions.xml", values)
 
 	// if there was an error in the HTTP request, return it
 	if err != nil {
