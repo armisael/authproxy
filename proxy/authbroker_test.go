@@ -83,7 +83,7 @@ func TestThreeScaleBrokerAuthenticateSupportsLimits(t *testing.T) {
 
 	req, _ := http.NewRequest("POST", "http://example.com", strings.NewReader(data.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	_, _, msg := broker.Authenticate(req)
+	_, msg, _ := broker.Authenticate(req)
 
 	if msg["creditsLeft"] != "9999998" {
 		t.Error("Expected 9999998 credits left, got", msg["creditsLeft"])
@@ -118,7 +118,7 @@ func TestThreeScaleBrokerAuthenticateWorksWithMonthlyLimits(t *testing.T) {
 
 	req, _ := http.NewRequest("POST", "http://example.com", strings.NewReader(data.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	_, _, msg := broker.Authenticate(req)
+	_, msg, _ := broker.Authenticate(req)
 
 	if msg["creditsLeft"] != "90" {
 		t.Error("Expected 90 credits left, got", msg["creditsLeft"])
@@ -160,7 +160,7 @@ func TestThreeScaleBrokerAuthenticateWorksWithBothDailyAndMonthlyLimits(t *testi
 
 	req, _ := http.NewRequest("POST", "http://example.com", strings.NewReader(data.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	_, _, msg := broker.Authenticate(req)
+	_, msg, _ := broker.Authenticate(req)
 
 	if msg["creditsLeft"] != "18" {
 		t.Error("Expected 18 credits left, got", msg["creditsLeft"], ". Perhaps it read monthly limits instead")

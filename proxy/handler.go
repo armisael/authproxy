@@ -188,7 +188,7 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		req.URL.Path = req.URL.Path[len(p.path):]
 	}
 
-	authorized, err, msg := p.Broker.Authenticate(req)
+	authorized, msg, err := p.Broker.Authenticate(req)
 
 	if !authorized {
 		p.writeError(rw, *err.(*ResponseError))

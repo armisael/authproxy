@@ -13,7 +13,7 @@ const (
 	creditsHeader            = "X-DL-credits"
 	creditsLeftHeader        = "X-DL-credits-left"
 	creditsResetHeader       = "X-DL-credits-reset"
-	threeScaleHitsMultiplier = int(1e6)
+	ThreeScaleHitsMultiplier = int(1e6)
 )
 
 type ResponseError struct {
@@ -33,14 +33,14 @@ type BrokerMessage map[string]string
 // A authentication broker is the component that authenticates
 // incoming requests to decide if they should be routed or not.
 type AuthenticationBroker interface {
-	Authenticate(*http.Request) (bool, *ResponseError, BrokerMessage)
+	Authenticate(*http.Request) (bool, BrokerMessage, *ResponseError)
 	Report(*http.Response, BrokerMessage) error
 }
 
 // YesBroker is to be used for debug only.
 type YesBroker struct{}
 
-func (y *YesBroker) Authenticate(req *http.Request) (toProxy bool, err *ResponseError, msg BrokerMessage) {
+func (y *YesBroker) Authenticate(req *http.Request) (toProxy bool, msg BrokerMessage, err *ResponseError) {
 	toProxy = true
 	return
 }
@@ -103,20 +103,14 @@ func parseRequestForApp(req *http.Request) (appId, appKey string) {
 	return
 }
 
-func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err *ResponseError, msg BrokerMessage) {
-	appId, appKey := parseRequestForApp(req)
-
+func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey string) (status ThreeXMLStatus, msg map[string]string, err *ResponseError) {
 	values := url.Values{}
+
 	values.Set("provider_key", brk.ProviderKey)
 	values.Set("app_id", appId)
 	values.Set("app_key", appKey)
 	// TODO[vad]: we should send Hits=1 too. ATM we go down to -1 requests left (and we show it to the user!)
 
-	if appKey == "" || appKey == "" {
-		err = &ResponseError{Message: "missing parameters $app_id and/or $app_key",
-			Status: 401, Code: "api.auth.unauthorized"}
-		return
-	}
 	msg = map[string]string{
 		"appId": appId,
 	}
@@ -128,18 +122,14 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err 
 	if err_ != nil {
 		//TODO[vad]: report 3scale's down
 		logger.Err("Error connecting to 3scale: ", err.Error())
-		return
-	}
-	if authRes.Body == nil {
-		logger.Err("Broken response from 3scale (empty body)")
+		err = &ResponseError{Message: "Internal server error", Status: 500, Code: "api.internalservererror"}
 		return
 	}
 	defer authRes.Body.Close()
 
+	// unmarshal the 3scale response
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(authRes.Body)
-
-	status := ThreeXMLStatus{}
 	xml.Unmarshal(buf.Bytes(), &status)
 
 	if status.XMLName.Local == "error" {
@@ -147,7 +137,6 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err 
 		return
 	}
 
-	// create a new slice with only daily limits
 	usageReportsByPeriod := make(map[string][]*ThreeXMLUsageReport)
 	for _, report := range status.UsageReports {
 		usageReportsByPeriod[report.Period] = append(usageReportsByPeriod[report.Period], &report)
@@ -178,6 +167,24 @@ loop:
 		msg["creditsReset"] = report.PeriodEnd
 	}
 
+	return
+}
+
+func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, msg BrokerMessage, err *ResponseError) {
+	appId, appKey := parseRequestForApp(req)
+
+	if appKey == "" || appId == "" {
+		err = &ResponseError{Message: "missing parameters $app_id and/or $app_key",
+			Status: 401, Code: "api.auth.unauthorized"}
+		return
+	}
+
+	status, msg, err := brk.DoAuthenticate(appId, appKey)
+
+	if err != nil {
+		return
+	}
+
 	toProxy = status.Authorized
 	err = &ResponseError{Message: status.Reason, Status: 401, Code: "api.auth.unauthorized"}
 
@@ -195,10 +202,10 @@ func (brk *ThreeScaleBroker) Report(res *http.Response, msg BrokerMessage) (err 
 		credits = 1
 		res.Header[creditsHeader] = []string{strconv.Itoa(credits)}
 	}
-	hits := credits * threeScaleHitsMultiplier
+	hits := credits * ThreeScaleHitsMultiplier
 	if msg["creditsLeft"] != "" {
 		creditsLeft, _ := strconv.Atoi(msg["creditsLeft"])
-		res.Header[creditsLeftHeader] = []string{strconv.Itoa((creditsLeft - hits) / threeScaleHitsMultiplier)}
+		res.Header[creditsLeftHeader] = []string{strconv.Itoa((creditsLeft - hits) / ThreeScaleHitsMultiplier)}
 	}
 	if msg["creditsReset"] != "" {
 		res.Header[creditsResetHeader] = []string{msg["creditsReset"]}

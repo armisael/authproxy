@@ -2,6 +2,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"github.com/gigaroby/authproxy/admin"
 	"github.com/gigaroby/authproxy/proxy"
 	"github.com/vad/go-bunyan/bunyan"
 	"net"
@@ -14,6 +16,7 @@ const PROXY_PORT = ":8080"
 var (
 	serviceFile = flag.String("service-file", "/etc/httproxy/services.conf", "file to load services from")
 	subpath     = flag.String("subpath", "/", "allow only requests to this path (and children)")
+	adminPath   = flag.String("admin", "admin", "change the admin path (it will be on '/THIS_VALUE/'")
 	timeout     = time.Duration(2) * time.Second // this should be configurable for every service
 	providerKey string
 	logger      = bunyan.NewLogger("authproxy.main")
@@ -57,6 +60,9 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/status", status)
+	// this should only be enabled with 3scale broker
+	creditsHandler := &admin.CreditsHandle{Broker: broker}
+	mux.Handle(fmt.Sprintf("/%s/credits", *adminPath), creditsHandler)
 	mux.Handle("/", proxyHandler)
 
 	server := &http.Server{
