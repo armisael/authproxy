@@ -52,7 +52,7 @@ func (y *YesBroker) Report(res *http.Response, msg BrokerMessage) (err error) {
 // 3scale broker http://3scale.net
 type ThreeScaleBroker struct {
 	ProviderKey string
-	Transport   http.RoundTripper
+	client      *http.Client
 }
 
 type ThreeXMLUsageReport struct {
@@ -76,11 +76,13 @@ type ThreeXMLStatus struct {
 func NewThreeScaleBroker(provKey string, transport http.RoundTripper) *ThreeScaleBroker {
 	if transport == nil {
 		transport = &http.Transport{
-		// TODO[vad]: use the dial timeout from main
-		// Dial: dialTimeout,
+			// TODO[vad]: use the dial timeout from main
+			// Dial: dialTimeout,
+			MaxIdleConnsPerHost: 128,
 		}
 	}
-	return &ThreeScaleBroker{ProviderKey: provKey, Transport: transport}
+
+	return &ThreeScaleBroker{ProviderKey: provKey, client: &http.Client{Transport: transport}}
 }
 
 func parseRequestForApp(req *http.Request) (appId, appKey string) {
@@ -102,8 +104,6 @@ func parseRequestForApp(req *http.Request) (appId, appKey string) {
 }
 
 func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err *ResponseError, msg BrokerMessage) {
-	client := &http.Client{Transport: brk.Transport}
-
 	appId, appKey := parseRequestForApp(req)
 
 	values := url.Values{}
@@ -124,7 +124,7 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err 
 	authReq, _ := http.NewRequest("GET", "https://su1.3scale.net/transactions/authorize.xml", nil)
 	authReq.URL.RawQuery = values.Encode()
 
-	authRes, err_ := client.Do(authReq)
+	authRes, err_ := brk.client.Do(authReq)
 	if err_ != nil {
 		//TODO[vad]: report 3scale's down
 		logger.Err("Error connecting to 3scale: ", err.Error())
@@ -169,8 +169,6 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err 
 }
 
 func (brk *ThreeScaleBroker) Report(res *http.Response, msg BrokerMessage) (err error) {
-	client := &http.Client{Transport: brk.Transport}
-
 	appId := msg["appId"]
 	credits, creditsErr := strconv.Atoi(res.Header.Get(creditsHeader))
 
@@ -196,7 +194,7 @@ func (brk *ThreeScaleBroker) Report(res *http.Response, msg BrokerMessage) (err 
 		"transactions[0][usage][hits]": {strconv.Itoa(hits)},
 	}
 
-	repRes, err := client.PostForm("https://su1.3scale.net/transactions.xml", values)
+	repRes, err := brk.client.PostForm("https://su1.3scale.net/transactions.xml", values)
 
 	// if there was an error in the HTTP request, return it
 	if err != nil {

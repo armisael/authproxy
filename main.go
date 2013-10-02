@@ -64,8 +64,7 @@ func main() {
 		Handler: mux,
 	}
 
-	logger.Infof("proxy listening on %s", server.Addr)
-	logger.Infof("proxying requests to: %s", loadb.GetCache())
+	logger.Info("proxy listening on ", server.Addr, ". Proxying requests to: ", loadb.GetCache())
 	logger.Info(server.ListenAndServe())
 	loadb.WaitStop()
 }
