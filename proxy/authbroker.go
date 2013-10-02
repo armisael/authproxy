@@ -148,18 +148,34 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, err 
 	}
 
 	// create a new slice with only daily limits
-	var dailyUsageReports []ThreeXMLUsageReport
+	usageReportsByPeriod := make(map[string][]*ThreeXMLUsageReport)
 	for _, report := range status.UsageReports {
-		if report.Period == "day" {
-			dailyUsageReports = append(dailyUsageReports, report)
+		usageReportsByPeriod[report.Period] = append(usageReportsByPeriod[report.Period], &report)
+	}
+
+	// find the report we want to show to the user and put it in "report"
+	var report *ThreeXMLUsageReport
+loop:
+	for _, period := range []string{"day", "month"} {
+		usageReports := usageReportsByPeriod[period]
+		switch len(usageReports) {
+		case 0: // no reports for this period, go on
+			continue
+		case 1:
+			{
+				report = usageReports[0]
+				break loop
+			}
+		default: // to many reports, why? we need to handle this!
+			logger.Warning("Too many usage reports for app_id ", appId, " in period", period, ". Expected 1, got ", len(usageReports))
 		}
 	}
 
-	if len(dailyUsageReports) != 1 {
-		logger.Warning("Missing/too much usage reports for app_id ", appId, ". Expected 1, got ", len(dailyUsageReports))
+	if report == nil {
+		logger.Warning("Missing usage reports for app_id ", appId)
 	} else {
-		msg["creditsLeft"] = strconv.Itoa(dailyUsageReports[0].MaxValue - dailyUsageReports[0].CurrentValue)
-		msg["creditsReset"] = dailyUsageReports[0].PeriodEnd
+		msg["creditsLeft"] = strconv.Itoa(report.MaxValue - report.CurrentValue)
+		msg["creditsReset"] = report.PeriodEnd
 	}
 
 	toProxy = status.Authorized
