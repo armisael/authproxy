@@ -3,8 +3,13 @@ package admin
 import (
 	"encoding/json"
 	"github.com/gigaroby/authproxy/proxy"
+	"github.com/vad/go-bunyan/bunyan"
 	"net/http"
 	"strconv"
+)
+
+var (
+	logger = bunyan.NewLogger("authproxy.admin")
 )
 
 type CreditsJson struct {
@@ -16,7 +21,8 @@ type responseJson struct {
 	Data    *CreditsJson `json:"data,omitempty"`
 	Error   bool         `json:"error"`
 	Message string       `json:"message"`
-	code    string       `json:"code"`
+	Code    string       `json:"code,omitempty"`
+	Status  int          `json:"status"`
 }
 
 type CreditsHandle struct {
@@ -37,14 +43,17 @@ func (h *CreditsHandle) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		_, msg, err := h.Broker.DoAuthenticate(appId, "")
 
 		if err != nil {
+			logger.Info("Error connecting to the authentication backend: ", err.Error())
 			res.Error = true
 			res.Message = "Error connecting to the authentication backend"
+			res.Code = "api.auth.error"
 		} else {
 			hits, err := strconv.Atoi(msg["creditsLeft"])
 
 			if err != nil {
 				res.Error = true
 				res.Message = "Bad response from the authentication backend"
+				res.Code = "api.auth.error"
 			} else {
 				data := &CreditsJson{CreditsLeft: hits / proxy.ThreeScaleHitsMultiplier, NextReset: msg["creditsReset"]}
 				res.Data = data
@@ -53,10 +62,11 @@ func (h *CreditsHandle) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if res.Error {
-		rw.WriteHeader(400)
+		res.Status = 400
 	} else {
-		rw.WriteHeader(200)
+		res.Status = 200
 	}
+	rw.WriteHeader(res.Status)
 
 	out, _ := json.Marshal(res)
 
