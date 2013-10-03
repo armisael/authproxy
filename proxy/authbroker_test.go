@@ -35,9 +35,13 @@ func (t *FactoryTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	return t.Response, nil
 }
 
+func noProviderBroker(transport http.RoundTripper) *ThreeScaleBroker {
+	return NewThreeScaleBroker("providerKey", nil, transport)
+}
+
 func TestThreeScaleBrokerPOSTRequests(t *testing.T) {
 	recorder := &RecordTransport{}
-	broker := NewThreeScaleBroker("providerKey", recorder)
+	broker := noProviderBroker(recorder)
 
 	data := url.Values{}
 	data.Set("$app_id", "MyApp")
@@ -75,7 +79,7 @@ func TestThreeScaleBrokerAuthenticateSupportsLimits(t *testing.T) {
               </usage_reports>
         </status>`
 	factory := &FactoryTransport{Response: NewResponse(200, body)}
-	broker := NewThreeScaleBroker("providerKey", factory)
+	broker := noProviderBroker(factory)
 
 	data := url.Values{}
 	data.Set("$app_id", "MyApp")
@@ -110,7 +114,7 @@ func TestThreeScaleBrokerAuthenticateWorksWithMonthlyLimits(t *testing.T) {
               </usage_reports>
         </status>`
 	factory := &FactoryTransport{Response: NewResponse(200, body)}
-	broker := NewThreeScaleBroker("providerKey", factory)
+	broker := noProviderBroker(factory)
 
 	data := url.Values{}
 	data.Set("$app_id", "MyApp")
@@ -152,7 +156,7 @@ func TestThreeScaleBrokerAuthenticateWorksWithBothDailyAndMonthlyLimits(t *testi
               </usage_reports>
         </status>`
 	factory := &FactoryTransport{Response: NewResponse(200, body)}
-	broker := NewThreeScaleBroker("providerKey", factory)
+	broker := noProviderBroker(factory)
 
 	data := url.Values{}
 	data.Set("$app_id", "MyApp")
@@ -169,7 +173,7 @@ func TestThreeScaleBrokerAuthenticateWorksWithBothDailyAndMonthlyLimits(t *testi
 
 func TestThreeScaleBrokerReportSetsHeaders(t *testing.T) {
 	factory := &FactoryTransport{Response: NewResponse(200, "")}
-	broker := NewThreeScaleBroker("providerKey", factory)
+	broker := noProviderBroker(factory)
 	res := NewResponse(200, "")
 
 	msg := map[string]string{

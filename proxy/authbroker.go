@@ -51,8 +51,9 @@ func (y *YesBroker) Report(res *http.Response, msg BrokerMessage) (err error) {
 
 // 3scale broker http://3scale.net
 type ThreeScaleBroker struct {
-	ProviderKey string
-	client      *http.Client
+	ProviderKey             string
+	ProviderKeyAlternatives map[string]string
+	client                  *http.Client
 }
 
 type ThreeXMLUsageReport struct {
@@ -73,7 +74,7 @@ type ThreeXMLStatus struct {
 	UsageReports []ThreeXMLUsageReport `xml:"usage_reports>usage_report"`
 }
 
-func NewThreeScaleBroker(provKey string, transport http.RoundTripper) *ThreeScaleBroker {
+func NewThreeScaleBroker(provKey string, provKeyAlts map[string]string, transport http.RoundTripper) *ThreeScaleBroker {
 	if transport == nil {
 		transport = &http.Transport{
 			// TODO[vad]: use the dial timeout from main
@@ -82,33 +83,39 @@ func NewThreeScaleBroker(provKey string, transport http.RoundTripper) *ThreeScal
 		}
 	}
 
-	return &ThreeScaleBroker{ProviderKey: provKey, client: &http.Client{Transport: transport}}
+	return &ThreeScaleBroker{ProviderKey: provKey, ProviderKeyAlternatives: provKeyAlts, client: &http.Client{Transport: transport}}
 }
 
-func parseRequestForApp(req *http.Request) (appId, appKey string) {
+func parseRequestForApp(req *http.Request) (appId, appKey, providerLabel string) {
 	switch req.Method {
 	case "GET":
 		{
 			reqValues := req.URL.Query()
 			appId = reqValues.Get("$app_id")
 			appKey = reqValues.Get("$app_key")
+			providerLabel = reqValues.Get("$provider")
 		}
 	default: // POST or PUT
 		{
 			appId = req.PostFormValue("$app_id")
 			appKey = req.PostFormValue("$app_key")
+			providerLabel = req.PostFormValue("$provider")
 		}
 	}
 
 	return
 }
 
-func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey string) (status ThreeXMLStatus, msg map[string]string, err *ResponseError) {
+func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey, providerLabel string) (status ThreeXMLStatus, msg map[string]string, err *ResponseError) {
 	values := url.Values{}
 
-	values.Set("provider_key", brk.ProviderKey)
 	values.Set("app_id", appId)
 	values.Set("app_key", appKey)
+	providerKey := brk.ProviderKeyAlternatives[providerLabel]
+	if providerKey == "" {
+		providerKey = brk.ProviderKey
+	}
+	values.Set("provider_key", providerKey)
 	// TODO[vad]: we should send Hits=1 too. ATM we go down to -1 requests left (and we show it to the user!)
 
 	msg = map[string]string{
@@ -171,7 +178,7 @@ loop:
 }
 
 func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, msg BrokerMessage, err *ResponseError) {
-	appId, appKey := parseRequestForApp(req)
+	appId, appKey, providerLabel := parseRequestForApp(req)
 
 	if appKey == "" || appId == "" {
 		err = &ResponseError{Message: "missing parameters $app_id and/or $app_key",
@@ -179,7 +186,7 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, msg 
 		return
 	}
 
-	status, msg, err := brk.DoAuthenticate(appId, appKey)
+	status, msg, err := brk.DoAuthenticate(appId, appKey, providerLabel)
 
 	if err != nil {
 		return
