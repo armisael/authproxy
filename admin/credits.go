@@ -33,6 +33,7 @@ func (h *CreditsHandle) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 
 	appId := query.Get("$app_id")
+	providerLabel := query.Get("$provider")
 	res := &responseJson{}
 
 	// TODO[vad]: refactor this jungle using a wrapper function
@@ -40,7 +41,7 @@ func (h *CreditsHandle) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		res.Error = true
 		res.Message = "Missing parameter $app_id"
 	} else {
-		_, msg, err := h.Broker.DoAuthenticate(appId, "", "")
+		_, msg, err := h.Broker.DoAuthenticate(appId, "", providerLabel)
 
 		if err != nil {
 			logger.Info("Error connecting to the authentication backend: ", err.Error())
