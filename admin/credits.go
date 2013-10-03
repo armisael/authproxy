@@ -47,14 +47,14 @@ func (h *CreditsHandle) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			logger.Info("Error connecting to the authentication backend: ", err.Error())
 			res.Error = true
 			res.Message = "Error connecting to the authentication backend"
-			res.Code = "api.auth.error"
+			res.Code = "error.internalServerError"
 		} else {
 			hits, err := strconv.Atoi(msg["creditsLeft"])
 
 			if err != nil {
 				res.Error = true
 				res.Message = "Bad response from the authentication backend"
-				res.Code = "api.auth.error"
+				res.Code = "error.authenticationError"
 			} else {
 				data := &CreditsJson{CreditsLeft: hits / proxy.ThreeScaleHitsMultiplier, NextReset: msg["creditsReset"]}
 				res.Data = data

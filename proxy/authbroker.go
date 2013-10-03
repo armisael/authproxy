@@ -129,7 +129,7 @@ func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey, providerLabel string)
 	if err_ != nil {
 		//TODO[vad]: report 3scale's down
 		logger.Err("Error connecting to 3scale: ", err.Error())
-		err = &ResponseError{Message: "Internal server error", Status: 500, Code: "api.internalservererror"}
+		err = &ResponseError{Message: "Internal server error", Status: 500, Code: "error.internalServerError"}
 		return
 	}
 	defer authRes.Body.Close()
@@ -140,7 +140,7 @@ func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey, providerLabel string)
 	xml.Unmarshal(buf.Bytes(), &status)
 
 	if status.XMLName.Local == "error" {
-		err = &ResponseError{Message: status.Data, Status: 401, Code: "api.auth.unauthorized"}
+		err = &ResponseError{Message: status.Data, Status: 401, Code: "error.authenticationError"}
 		return
 	}
 
@@ -182,7 +182,7 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, msg 
 
 	if appKey == "" || appId == "" {
 		err = &ResponseError{Message: "missing parameters $app_id and/or $app_key",
-			Status: 401, Code: "api.auth.unauthorized"}
+			Status: 401, Code: "error.missingParameter"}
 		return
 	}
 
@@ -193,7 +193,7 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, msg 
 	}
 
 	toProxy = status.Authorized
-	err = &ResponseError{Message: status.Reason, Status: 401, Code: "api.auth.unauthorized"}
+	err = &ResponseError{Message: status.Reason, Status: 401, Code: "error.authenticationError"}
 
 	return
 }

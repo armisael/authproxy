@@ -154,7 +154,7 @@ func (p *ProxyHandler) doProxyRequest(req *http.Request) (res *http.Response, ou
 		outErr = ResponseError{
 			Message: err.Error(),
 			Status:  http.StatusBadGateway,
-			Code:    "api.net.badGateway",
+			Code:    "error.badGateway",
 		}
 	}
 
@@ -167,7 +167,7 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	if !strings.HasPrefix(req.URL.Path, p.path) {
 		p.writeError(rw, ResponseError{Message: "Not found",
-			Status: 404, Code: "api.notFound"})
+			Status: 404, Code: "error.notFound"})
 		return
 	} else { // strip that prefix
 		req.URL.Path = req.URL.Path[len(p.path):]

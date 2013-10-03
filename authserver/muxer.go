@@ -65,7 +65,7 @@ func (h *Handle) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if readErr != nil {
 		logger.Info(readErr.Error())
 		rw.WriteHeader(400)
-		res, _ := json.Marshal(&responseJson{Status: 400, Message: "Request too big", Code: "api.request.toobig"})
+		res, _ := json.Marshal(&responseJson{Status: 400, Message: "Request too large", Code: "error.requestTooLarge"})
 		rw.Write(res)
 		return
 	}
