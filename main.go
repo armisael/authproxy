@@ -2,8 +2,7 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"github.com/gigaroby/authproxy/admin"
+	"github.com/gigaroby/authproxy/authserver"
 	"github.com/gigaroby/authproxy/proxy"
 	"github.com/vad/go-bunyan/bunyan"
 	"net"
@@ -24,11 +23,6 @@ var (
 
 func dialTimeout(network, addr string) (net.Conn, error) {
 	return net.DialTimeout(network, addr, timeout)
-}
-
-func status(rw http.ResponseWriter, req *http.Request) {
-	rw.WriteHeader(200)
-	rw.Write([]byte("ok"))
 }
 
 func main() {
@@ -57,17 +51,11 @@ func main() {
 	}
 
 	proxyHandler := proxy.NewProxyHandler(loadb, broker, transport, *subpath)
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/status", status)
-	// this should only be enabled with 3scale broker
-	creditsHandler := &admin.CreditsHandle{Broker: broker}
-	mux.Handle(fmt.Sprintf("/%s/credits", *adminPath), creditsHandler)
-	mux.Handle("/", proxyHandler)
+	authServer := authserver.NewHandle(broker, proxyHandler, *adminPath)
 
 	server := &http.Server{
 		Addr:    PROXY_PORT,
-		Handler: mux,
+		Handler: authServer,
 	}
 
 	logger.Info("proxy listening on ", server.Addr, ". Proxying requests to: ", loadb.GetCache())
