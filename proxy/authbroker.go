@@ -106,20 +106,27 @@ func parseRequestForApp(req *http.Request) (appId, appKey, providerLabel string)
 	return
 }
 
-func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey, providerLabel string) (status ThreeXMLStatus, msg map[string]string, err *ResponseError) {
-	values := url.Values{}
-
-	values.Set("app_id", appId)
-	values.Set("app_key", appKey)
-	providerKey := brk.ProviderKeyAlternatives[providerLabel]
+func (brk *ThreeScaleBroker) getProviderKey(label string) (providerKey string) {
+	providerKey = brk.ProviderKeyAlternatives[label]
 	if providerKey == "" {
 		providerKey = brk.ProviderKey
 	}
+	return
+}
+
+func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey, providerLabel string) (status ThreeXMLStatus, msg map[string]string, err *ResponseError) {
+	values := url.Values{}
+
+	providerKey := brk.getProviderKey(providerLabel)
+
+	values.Set("app_id", appId)
+	values.Set("app_key", appKey)
 	values.Set("provider_key", providerKey)
 	// TODO[vad]: we should send Hits=1 too. ATM we go down to -1 requests left (and we show it to the user!)
 
 	msg = map[string]string{
-		"appId": appId,
+		"appId":       appId,
+		"providerKey": providerKey,
 	}
 
 	authReq, _ := http.NewRequest("GET", "https://su1.3scale.net/transactions/authorize.xml", nil)
@@ -219,7 +226,7 @@ func (brk *ThreeScaleBroker) Report(res *http.Response, msg BrokerMessage) (err 
 	}
 
 	values := url.Values{
-		"provider_key":                 {brk.ProviderKey},
+		"provider_key":                 {msg["providerKey"]},
 		"transactions[0][app_id]":      {appId},
 		"transactions[0][usage][hits]": {strconv.Itoa(hits)},
 	}

@@ -209,6 +209,7 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 func copyHeader(dst, src http.Header) {
 	for k, vv := range src {
 		// don't use Add here, it doesn't preserve the case: https://code.google.com/p/go/issues/detail?id=5022
+		//TODO[vad]: it doesn't preserve the headers again... maybe it's the range that uses Get?
 		dst[k] = vv
 	}
 }
