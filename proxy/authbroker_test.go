@@ -185,7 +185,7 @@ func TestThreeScaleBrokerReportSetsHeaders(t *testing.T) {
 
 	broker.Report(res, msg)
 
-	for header, expected := range map[string]string{"X-DL-credits": "1", "X-DL-credits-reset": "over the rainbow", "X-DL-credits-left": "19"} {
+	for header, expected := range map[string]string{"X-DL-units": "1", "X-DL-units-reset": "over the rainbow", "X-DL-units-left": "19"} {
 		if res.Header[header][0] != expected {
 			t.Error(header, "HTTP header is missing or wrong. Expected: '",
 				expected, "', got ", res.Header[header][0])

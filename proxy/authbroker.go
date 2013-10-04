@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	creditsHeader            = "X-DL-credits"
-	creditsLeftHeader        = "X-DL-credits-left"
-	creditsResetHeader       = "X-DL-credits-reset"
+	creditsHeader            = "X-DL-units"
+	creditsLeftHeader        = "X-DL-units-left"
+	creditsResetHeader       = "X-DL-units-reset"
 	ThreeScaleHitsMultiplier = int(1e6)
 )
 
@@ -128,7 +128,7 @@ func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey, providerLabel string)
 	authRes, err_ := brk.client.Do(authReq)
 	if err_ != nil {
 		//TODO[vad]: report 3scale's down
-		logger.Err("Error connecting to 3scale: ", err.Error())
+		logger.Err("Error connecting to 3scale: ", err_.Error())
 		err = &ResponseError{Message: "Internal server error", Status: 500, Code: "error.internalServerError"}
 		return
 	}
