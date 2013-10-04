@@ -7,6 +7,7 @@ import (
 	"github.com/gigaroby/authproxy/admin"
 	"github.com/gigaroby/authproxy/proxy"
 	"github.com/vad/go-bunyan/bunyan"
+	"io"
 	"net/http"
 )
 
@@ -53,25 +54,35 @@ func NewHandle(broker *proxy.ThreeScaleBroker, proxyHandler *proxy.ProxyHandler,
 	return &Handle{mux: mux}
 }
 
-func (h *Handle) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	defer req.Body.Close()
-	req.Body = http.MaxBytesReader(rw, req.Body, requestMaxSize)
+func limitAndBufferBody(rw http.ResponseWriter, body io.ReadCloser, requestMaxSize int64) (rc io.ReadCloser, err error) {
+	var buffer bytes.Buffer
 
 	// limit the request Body and buffer it
-	var buffer bytes.Buffer
-	_, readErr := buffer.ReadFrom(req.Body)
+	_, err = buffer.ReadFrom(http.MaxBytesReader(rw, body, requestMaxSize))
+
+	if err != nil {
+		return
+	}
+
+	// we can't use NopCloser here, because we need to Seek after.
+	// ClosingReader (with its anonymous field) allows to do it
+	rc = &ClosingReader{*bytes.NewReader(buffer.Bytes())}
+	return
+}
+
+func (h *Handle) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	defer req.Body.Close()
 
-	if readErr != nil {
-		logger.Info(readErr.Error())
+	body, err := limitAndBufferBody(rw, req.Body, requestMaxSize)
+	req.Body = body
+
+	if err != nil {
+		logger.Info(err.Error())
 		rw.WriteHeader(400)
 		res, _ := json.Marshal(&responseJson{Status: 400, Message: "Request too large", Code: "error.requestTooLarge"})
 		rw.Write(res)
 		return
 	}
-
-	body := ClosingReader{*bytes.NewReader(buffer.Bytes())}
-	req.Body = &body
 
 	h.mux.ServeHTTP(rw, req)
 }

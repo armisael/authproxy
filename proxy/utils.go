@@ -17,19 +17,19 @@ func (s Service) String() string {
 	return u.String()
 }
 
-func attempt(maxRetray int, retrayDelay time.Duration, attemptFunc func() error) error {
-	var i int = 1
+func attempt(maxRetray int, retrayDelay time.Duration, attemptFunc func() error) (err error) {
+	i := 1
 	for {
-		err := attemptFunc()
+		err = attemptFunc()
 		if err != nil {
 			if i < maxRetray {
 				time.Sleep(retrayDelay)
 				i++
 				continue
 			}
-			return err
+			return
 		} else {
-			return nil
+			return
 		}
 	}
 }
