@@ -128,7 +128,7 @@ func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey, providerLabel string)
 	authRes, err_ := brk.client.Do(authReq)
 	if err_ != nil {
 		//TODO[vad]: report 3scale's down
-		logger.Err("Error connecting to 3scale: ", err_.Error())
+		logger.Err("Error connecting to 3scale: ", err.Error())
 		err = &ResponseError{Message: "Internal server error", Status: 500, Code: "error.internalServerError"}
 		return
 	}

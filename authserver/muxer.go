@@ -7,7 +7,6 @@ import (
 	"github.com/gigaroby/authproxy/admin"
 	"github.com/gigaroby/authproxy/proxy"
 	"github.com/vad/go-bunyan/bunyan"
-	"io/ioutil"
 	"net/http"
 )
 
@@ -26,6 +25,14 @@ type Handle struct {
 func status(rw http.ResponseWriter, req *http.Request) {
 	rw.WriteHeader(200)
 	rw.Write([]byte("ok"))
+}
+
+type ClosingReader struct {
+	bytes.Reader
+}
+
+func (rnc ClosingReader) Close() error {
+	return nil
 }
 
 type responseJson struct {
@@ -63,7 +70,8 @@ func (h *Handle) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	req.Body = ioutil.NopCloser(bytes.NewReader(buffer.Bytes()))
+	body := ClosingReader{*bytes.NewReader(buffer.Bytes())}
+	req.Body = &body
 
 	h.mux.ServeHTTP(rw, req)
 }
