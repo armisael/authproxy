@@ -1,8 +1,8 @@
 package proxy
 
 import (
-	"net/http"
-	"testing"
+	_ "net/http"
+	_ "testing"
 )
 
 // TODO[vad]: this test fails (minor issue)
