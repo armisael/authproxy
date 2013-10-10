@@ -15,6 +15,7 @@ const PROXY_PORT = ":8080"
 
 var (
 	providerKey             string
+	yesBroker               = flag.Bool("yes", false, "use the yes broker (instead of 3scale)")
 	providerKeyAlternatives = flag.String("3scale-provider-key-alt", "", "comma separated pairs (elements are column separated) of label:providerKey, used in API calls")
 	serviceFile             = flag.String("service-file", "/etc/httproxy/services.conf", "file to load services from")
 	subpath                 = flag.String("subpath", "/", "allow only requests to this path (and children)")
@@ -31,20 +32,26 @@ func main() {
 	flag.StringVar(&providerKey, "3scale-provider-key", "", "3scale provider key")
 	flag.Parse()
 
-	if providerKey == "" {
-		logger.Fatal("Missing parameter --3scale-provider-key")
-	}
-
-	pkAlts := *providerKeyAlternatives
-	pkAltsMap := make(map[string]string)
-	if pkAlts != "" {
-		for _, pairString := range strings.Split(pkAlts, ",") {
-			pair := strings.Split(pairString, ":")
-			if len(pair) != 2 {
-				logger.Fatal("Invalid column separated string (should be 2 elements): ", pairString)
-			}
-			pkAltsMap[pair[0]] = pair[1]
+	var broker proxy.AuthenticationBroker
+	if *yesBroker {
+		broker = &proxy.YesBroker{}
+	} else {
+		if providerKey == "" {
+			logger.Fatal("Missing parameter --3scale-provider-key")
 		}
+
+		pkAlts := *providerKeyAlternatives
+		pkAltsMap := make(map[string]string)
+		if pkAlts != "" {
+			for _, pairString := range strings.Split(pkAlts, ",") {
+				pair := strings.Split(pairString, ":")
+				if len(pair) != 2 {
+					logger.Fatal("Invalid column separated string (should be 2 elements): ", pairString)
+				}
+				pkAltsMap[pair[0]] = pair[1]
+			}
+		}
+		broker = proxy.NewThreeScaleBroker(providerKey, pkAltsMap, nil)
 	}
 
 	loadb := proxy.NewLoadBalancer(
@@ -57,8 +64,6 @@ func main() {
 	if err != nil {
 		logger.Fatal("can't fetch initial server list")
 	}
-
-	broker := proxy.NewThreeScaleBroker(providerKey, pkAltsMap, nil)
 
 	transport := &http.Transport{
 		Dial: dialTimeout,

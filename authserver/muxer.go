@@ -43,12 +43,14 @@ type responseJson struct {
 	Status  int    `json:"status"`
 }
 
-func NewHandle(broker *proxy.ThreeScaleBroker, proxyHandler *proxy.ProxyHandler, adminPath string) *Handle {
+func NewHandle(broker proxy.AuthenticationBroker, proxyHandler *proxy.ProxyHandler, adminPath string) *Handle {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/status", status)
-	// TODO[vad] this should only be enabled with 3scale broker
-	creditsHandler := &admin.CreditsHandle{Broker: broker}
-	mux.Handle(fmt.Sprintf("/%s/credits", adminPath), creditsHandler)
+
+	if tBroker, ok := broker.(*proxy.ThreeScaleBroker); ok {
+		creditsHandler := &admin.CreditsHandle{Broker: tBroker}
+		mux.Handle(fmt.Sprintf("/%s/credits", adminPath), creditsHandler)
+	}
 	mux.Handle("/", proxyHandler)
 
 	return &Handle{mux: mux}

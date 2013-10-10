@@ -138,13 +138,15 @@ func (p *ProxyHandler) writeError(rw http.ResponseWriter, err ResponseError) {
 	rw.Write(marshalled)
 }
 
-func (p *ProxyHandler) doProxyRequest(req *http.Request) (res *http.Response, outErr error) {
+func (p *ProxyHandler) doProxyRequest(req *http.Request) (res *http.Response, d time.Duration, outErr error) {
 	proxyService := <-p.Balancer.Services
 
 	outReq := p.requestToProxy(req, proxyService)
 
 	// p.Transport is always set in New function
+	start := time.Now()
 	res, err := p.Transport.RoundTrip(outReq)
+	d = time.Now().Sub(start)
 	if err != nil {
 		netError, ok := err.(net.Error)
 		if ok && netError.Timeout() {
@@ -162,7 +164,7 @@ func (p *ProxyHandler) doProxyRequest(req *http.Request) (res *http.Response, ou
 }
 
 func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	logger.Info("got request from ", req.RemoteAddr)
+	logger.Debug("got request from ", req.RemoteAddr, " on ", req.URL)
 	var err error
 
 	if !strings.HasPrefix(req.URL.Path, p.path) {
@@ -181,12 +183,13 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	var res *http.Response
+	var duration time.Duration
 
-	err = attempt(3, 100*time.Millisecond, func() error {
+	err = attempt(3, 50*time.Millisecond, func() error {
 		if seeker, ok := req.Body.(io.Seeker); ok {
 			seeker.Seek(0, 0)
 		}
-		res, err = p.doProxyRequest(req)
+		res, duration, err = p.doProxyRequest(req)
 		return err
 	})
 
@@ -196,6 +199,8 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	defer res.Body.Close()
+
+	logger.Info("Remote service called successfully, it last ", duration)
 
 	if reportErr := p.Broker.Report(res, msg); reportErr != nil {
 		logger.Err("Report call failed, but the show must go on!")
@@ -207,9 +212,9 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func copyHeader(dst, src http.Header) {
+	//TODO[vad]: it doesn't preserve the headers again... it seems that src already has broken case
 	for k, vv := range src {
-		// don't use Add here, it doesn't preserve the case: https://code.google.com/p/go/issues/detail?id=5022
-		//TODO[vad]: it doesn't preserve the headers again... maybe it's the range that uses Get?
+		// NOTE: don't use Add here, it doesn't preserve the case: https://code.google.com/p/go/issues/detail?id=5022
 		dst[k] = vv
 	}
 }
