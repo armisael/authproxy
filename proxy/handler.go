@@ -194,13 +194,14 @@ func (p *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	})
 
 	if err != nil {
-		logger.Err("error proxying request for ", req.URL, " to backend. error was: ", err)
-		p.writeError(rw, err.(ResponseError))
+		resError := err.(ResponseError)
+		logger.Errm("Error proxing request", map[string]interface{}{"type": "request", "duration": duration, "status": resError.Status, "url": req.URL.String()})
+		p.writeError(rw, resError)
 		return
 	}
 	defer res.Body.Close()
 
-	logger.Info("Remote service called successfully, it last ", duration)
+	logger.Infom("Successful request", map[string]interface{}{"type": "request", "duration": duration, "status": http.StatusOK, "url": req.URL.String()})
 
 	if reportErr := p.Broker.Report(res, msg); reportErr != nil {
 		logger.Err("Report call failed, but the show must go on!")
