@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	gorillamux "github.com/gorilla/mux"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"strings"
@@ -154,6 +155,12 @@ func (h *ServiceHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	logger.Debug("request from ", req.RemoteAddr, " on ", req.URL)
 	var err error
 
+	if len(req.URL.RawQuery) > 7001 {
+		writeError(rw, ResponseError{Message: "The requested URI is too long for a GET, please use POSTs",
+			Status: 414, Code: "error.requestURITooLong"})
+		return
+	}
+
 	// if !strings.HasPrefix(req.URL.Path, p.path) {
 	//  writeError(rw, ResponseError{Message: "Not found",
 	//      Status: 404, Code: "error.notFound"})
@@ -181,15 +188,17 @@ func (h *ServiceHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return err
 	})
 
+	url := req.URL.String()
+	shortURL := url[:int(math.Min(200, float64(len(url))))]
 	if err != nil {
 		resError := err.(ResponseError)
-		logger.Errm("Error proxing request", map[string]interface{}{"type": "request", "duration": duration, "status": resError.Status, "url": req.URL.String()})
+		logger.Errm("Error proxing request", map[string]interface{}{"type": "request", "duration": duration, "status": resError.Status, "url": shortURL})
 		writeError(rw, resError)
 		return
 	}
 	defer res.Body.Close()
 
-	logger.Infom("Successful request", map[string]interface{}{"type": "request", "duration": duration, "status": http.StatusOK, "url": req.URL.String()})
+	logger.Infom("Successful request", map[string]interface{}{"type": "request", "duration": duration, "status": res.StatusCode, "url": shortURL})
 
 	if reportErr := h.Broker.Report(res, msg); reportErr != nil {
 		logger.Err("Report call failed, but the show must go on!")
