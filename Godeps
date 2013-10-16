@@ -1,0 +1,18 @@
+{
+	"ImportPath": "github.com/gigaroby/authproxy",
+	"GoVersion": "go version go1.1 linux/amd64",
+	"Deps": [
+		{
+			"ImportPath": "github.com/gorilla/context",
+			"Rev": "708054d61e5a2918b9f4e9700000ee611dcf03f5"
+		},
+		{
+			"ImportPath": "github.com/gorilla/mux",
+			"Rev": "b08c5fcf14d01cb0c20ddf70157f54d4a2c3a38a"
+		},
+		{
+			"ImportPath": "github.com/vad/go-bunyan/bunyan",
+			"Rev": "74d7878f017d696cd8c385eb53c4c347421a4bb0"
+		}
+	]
+}

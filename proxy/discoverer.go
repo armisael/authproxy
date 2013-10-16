@@ -2,7 +2,9 @@ package proxy
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"sync"
@@ -60,6 +62,41 @@ func (f *FileDiscoverer) Discover() (services []Service, err error) {
 
 	if len(services) == 0 {
 		err = fmt.Errorf("no services specified in file [%s]\n", f.Path)
+	}
+	return
+}
+
+type JsonDiscoverer struct {
+	// JsonDiscoverer reads the list of services from a JSON file.
+	// The JSON file must represent an object, where keys are service names
+	// and values are arrays of paths (string).
+	// This service discovers only services with key == Name
+	Path string
+	Name string
+}
+
+func (d *JsonDiscoverer) Discover() (services []Service, err error) {
+	backends := make(map[string][]string)
+	content, err := ioutil.ReadFile(d.Path)
+
+	// TODO[vad]: it should not exit if the JSON it's not correct, unless it's the first time Discover() is run
+	if err != nil {
+		logger.Fatal(err.Error())
+	}
+	err = json.Unmarshal(content, &backends)
+	if err != nil {
+		logger.Fatal(err.Error())
+	}
+
+	for _, el := range backends[d.Name] {
+		url, err := url.Parse(el)
+		if err != nil {
+			continue
+		}
+		services = append(services, Service(*url))
+	}
+	if len(services) == 0 {
+		err = fmt.Errorf("no services specified in file [%s]\n", d.Path)
 	}
 	return
 }

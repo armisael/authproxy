@@ -17,8 +17,8 @@ var (
 	providerKey             string
 	yesBroker               = flag.Bool("yes", false, "use the yes broker (instead of 3scale)")
 	providerKeyAlternatives = flag.String("3scale-provider-key-alt", "", "comma separated pairs (elements are column separated) of label:providerKey, used in API calls")
-	serviceFile             = flag.String("service-file", "/etc/httproxy/services.conf", "file to load services from")
-	subpath                 = flag.String("subpath", "/", "allow only requests to this path (and children)")
+	serviceFile             = flag.String("services-file", "/etc/authproxy/services.json", "file to load services from")
+	backendsFile            = flag.String("backends-file", "/etc/authproxy/backends.json", "file to load backends from")
 	adminPath               = flag.String("admin", "admin", "change the admin path (it will be on '/THIS_VALUE/'")
 	timeout                 = time.Duration(2) * time.Second // this should be configurable for every service
 	logger                  = bunyan.NewLogger("authproxy.main")
@@ -54,22 +54,13 @@ func main() {
 		broker = proxy.NewThreeScaleBroker(providerKey, pkAltsMap, nil)
 	}
 
-	loadb := proxy.NewLoadBalancer(
-		&proxy.FileDiscoverer{Path: *serviceFile},
-		&proxy.RandomRouter{},
-		1*time.Second,
-	)
-
-	err := loadb.Start()
-	if err != nil {
-		logger.Fatal("can't fetch initial server list")
-	}
+	// TODO[vad]: check if files exist
 
 	transport := &http.Transport{
 		Dial: dialTimeout,
 	}
 
-	proxyHandler := proxy.NewProxyHandler(loadb, broker, transport, *subpath)
+	proxyHandler := proxy.NewProxyHandler(broker, transport, *serviceFile, *backendsFile)
 	authServer := authserver.NewHandle(broker, proxyHandler, *adminPath)
 
 	server := &http.Server{
@@ -77,7 +68,5 @@ func main() {
 		Handler: authServer,
 	}
 
-	logger.Info("proxy listening on ", server.Addr, ". Proxying requests to: ", loadb.GetCache())
 	logger.Info(server.ListenAndServe())
-	loadb.WaitStop()
 }

@@ -43,7 +43,7 @@ type responseJson struct {
 	Status  int    `json:"status"`
 }
 
-func NewHandle(broker proxy.AuthenticationBroker, proxyHandler *proxy.ProxyHandler, adminPath string) *Handle {
+func NewHandle(broker proxy.AuthenticationBroker, proxyHandler http.Handler, adminPath string) *Handle {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/status", status)
 
