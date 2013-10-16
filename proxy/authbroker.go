@@ -221,6 +221,8 @@ func (brk *ThreeScaleBroker) Report(res *http.Response, msg BrokerMessage) (err 
 		res.Header[creditsHeader] = []string{"1"}
 	}
 	hits := round(credits * ThreeScaleHitsMultiplier)
+
+	// this should be set by the Authenticate
 	if msg["creditsLeft"] != "" {
 		creditsLeft, _ := strconv.Atoi(msg["creditsLeft"])
 		res.Header[creditsLeftHeader] = []string{strconv.Itoa((creditsLeft - hits) / ThreeScaleHitsMultiplier)}

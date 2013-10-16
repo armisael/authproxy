@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	. "github.com/smartystreets/goconvey/convey"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -191,4 +192,37 @@ func TestThreeScaleBrokerReportSetsHeaders(t *testing.T) {
 				expected, "', got ", res.Header[header][0])
 		}
 	}
+}
+
+func TestThreeScaleBrokerReportWorks(t *testing.T) {
+	transport := &RecordTransport{}
+	broker := noProviderBroker(transport)
+
+	Convey("Given a backend response", t, func() {
+		Convey("When it contains units as a floating point number", func() {
+			res := NewResponse(200, "")
+			res.Header.Set("X-DL-units", "0.02")
+			broker.Report(res, BrokerMessage{})
+
+			Convey("It reports them to 3scale", func() {
+				bBody, _ := ioutil.ReadAll(transport.LastRequest.Body)
+				body := string(bBody)
+
+				So(body, ShouldContainSubstring, "usage%5D%5Bhits%5D=20000")
+			})
+		})
+
+		Convey("When it contains units as an integer", func() {
+			res := NewResponse(200, "")
+			res.Header.Set("X-DL-units", "5")
+			broker.Report(res, BrokerMessage{})
+
+			Convey("It reports them to 3scale", func() {
+				bBody, _ := ioutil.ReadAll(transport.LastRequest.Body)
+				body := string(bBody)
+
+				So(body, ShouldContainSubstring, "usage%5D%5Bhits%5D=5000000")
+			})
+		})
+	})
 }
