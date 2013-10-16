@@ -13,7 +13,7 @@ const (
 	creditsHeader            = "X-DL-units"
 	creditsLeftHeader        = "X-DL-units-left"
 	creditsResetHeader       = "X-DL-units-reset"
-	ThreeScaleHitsMultiplier = int(1e6)
+	ThreeScaleHitsMultiplier = 1e6
 )
 
 type ResponseError struct {
@@ -205,18 +205,22 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, msg 
 	return
 }
 
+func round(f float64) int {
+	return int(f + 0.5)
+}
+
 func (brk *ThreeScaleBroker) Report(res *http.Response, msg BrokerMessage) (err error) {
 	appId := msg["appId"]
-	credits, creditsErr := strconv.Atoi(res.Header.Get(creditsHeader))
+	credits, creditsErr := strconv.ParseFloat(res.Header.Get(creditsHeader), 64)
 
 	if creditsErr != nil {
 		if res.Request != nil {
 			logger.Info("The response from ", res.Request.URL.String(), " does not contain ", creditsHeader)
 		}
-		credits = 1
-		res.Header[creditsHeader] = []string{strconv.Itoa(credits)}
+		credits = 1.0
+		res.Header[creditsHeader] = []string{"1"}
 	}
-	hits := credits * ThreeScaleHitsMultiplier
+	hits := round(credits * ThreeScaleHitsMultiplier)
 	if msg["creditsLeft"] != "" {
 		creditsLeft, _ := strconv.Atoi(msg["creditsLeft"])
 		res.Header[creditsLeftHeader] = []string{strconv.Itoa((creditsLeft - hits) / ThreeScaleHitsMultiplier)}
