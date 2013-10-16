@@ -22,6 +22,7 @@ func (h *NotFoundHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	err := ResponseError{
 		Code:    "error.notFound",
 		Message: "API endpoint not found",
+		Status:  404,
 	}
 
 	writeError(rw, err)

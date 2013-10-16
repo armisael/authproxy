@@ -27,6 +27,9 @@ func NewServiceHandler(name string, conf *ServiceConf, t http.RoundTripper, b Au
 }
 
 func (h *ServiceHandler) Register(mux *gorillamux.Router) {
+	if h.Path[len(h.Path)-1] != '/' {
+		(*mux).Handle(h.Path+"/", h)
+	}
 	(*mux).Handle(h.Path, h)
 }
 
