@@ -1,0 +1,10 @@
+{
+    "service1": {
+        "path": "/service1/v1",
+        "timeout": 5
+    },
+    "service2": {
+        "path": "/service2/v1",
+        "timeout": 2
+    }
+}
