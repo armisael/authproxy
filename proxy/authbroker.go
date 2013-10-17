@@ -224,8 +224,9 @@ func (brk *ThreeScaleBroker) Report(res *http.Response, msg BrokerMessage) (err 
 
 	// this should be set by the Authenticate
 	if msg["creditsLeft"] != "" {
-		creditsLeft, _ := strconv.Atoi(msg["creditsLeft"])
-		res.Header[creditsLeftHeader] = []string{strconv.Itoa((creditsLeft - hits) / ThreeScaleHitsMultiplier)}
+		creditsLeft, _ := strconv.ParseFloat(msg["creditsLeft"], 64)
+		creditsLeftAfter := (creditsLeft - float64(hits)) / float64(ThreeScaleHitsMultiplier)
+		res.Header[creditsLeftHeader] = []string{strconv.FormatFloat(creditsLeftAfter, 'f', -1, 64)}
 	}
 	if msg["creditsReset"] != "" {
 		res.Header[creditsResetHeader] = []string{msg["creditsReset"]}

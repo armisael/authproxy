@@ -176,6 +176,7 @@ func TestThreeScaleBrokerReportSetsHeaders(t *testing.T) {
 	factory := &FactoryTransport{Response: NewResponse(200, "")}
 	broker := noProviderBroker(factory)
 	res := NewResponse(200, "")
+	res.Header.Set("X-DL-units", "0.1")
 
 	msg := map[string]string{
 		"appId":        "MyApp",
@@ -186,10 +187,13 @@ func TestThreeScaleBrokerReportSetsHeaders(t *testing.T) {
 
 	broker.Report(res, msg)
 
-	for header, expected := range map[string]string{"X-DL-units": "1", "X-DL-units-reset": "over the rainbow", "X-DL-units-left": "19"} {
-		if res.Header[header][0] != expected {
+	for header, expected := range map[string]string{"X-Dl-Units": "0.1", "X-DL-units-reset": "over the rainbow", "X-DL-units-left": "19.9"} {
+		headerValues := res.Header[header]
+		if len(headerValues) != 1 {
+			t.Error("Wrong number of HTTP header ", header, ". Expected: 1, got:", len(headerValues))
+		} else if headerValues[0] != expected {
 			t.Error(header, "HTTP header is missing or wrong. Expected: '",
-				expected, "', got ", res.Header[header][0])
+				expected, "', got ", headerValues[0])
 		}
 	}
 }

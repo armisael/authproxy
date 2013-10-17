@@ -28,7 +28,7 @@ func TestCopyHeader(t *testing.T) {
 	}
 }
 
-func TestProxyHandlerWitYesBroker(t *testing.T) {
+func TestProxyHandlerPaths(t *testing.T) {
 	trans := &RecordTransport{}
 	proxy := NewProxyHandler(nil, trans, "test_data/services.json", "test_data/backends.json")
 
