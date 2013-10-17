@@ -211,7 +211,8 @@ func round(f float64) int {
 
 func (brk *ThreeScaleBroker) Report(res *http.Response, msg BrokerMessage) (err error) {
 	appId := msg["appId"]
-	credits, creditsErr := strconv.ParseFloat(res.Header.Get(creditsHeader), 64)
+	creditsHeaderValue := res.Header.Get(creditsHeader)
+	credits, creditsErr := strconv.ParseFloat(creditsHeaderValue, 64)
 
 	if creditsErr != nil {
 		if res.Request != nil {
@@ -219,6 +220,10 @@ func (brk *ThreeScaleBroker) Report(res *http.Response, msg BrokerMessage) (err 
 		}
 		credits = 1.0
 		res.Header[creditsHeader] = []string{"1"}
+	} else {
+		// this is an hack: rewrite X-Dl-Units -> X-DL-units
+		res.Header.Del(creditsHeader)
+		res.Header[creditsHeader] = []string{creditsHeaderValue}
 	}
 	hits := round(credits * ThreeScaleHitsMultiplier)
 

@@ -187,7 +187,7 @@ func TestThreeScaleBrokerReportSetsHeaders(t *testing.T) {
 
 	broker.Report(res, msg)
 
-	for header, expected := range map[string]string{"X-Dl-Units": "0.1", "X-DL-units-reset": "over the rainbow", "X-DL-units-left": "19.9"} {
+	for header, expected := range map[string]string{"X-DL-units": "0.1", "X-DL-units-reset": "over the rainbow", "X-DL-units-left": "19.9"} {
 		headerValues := res.Header[header]
 		if len(headerValues) != 1 {
 			t.Error("Wrong number of HTTP header ", header, ". Expected: 1, got:", len(headerValues))
