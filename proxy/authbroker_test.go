@@ -206,7 +206,8 @@ func TestThreeScaleBrokerReportWorks(t *testing.T) {
 		Convey("When it contains units as a floating point number", func() {
 			res := NewResponse(200, "")
 			res.Header.Set("X-DL-units", "0.02")
-			broker.Report(res, BrokerMessage{})
+			wait, _ := broker.Report(res, BrokerMessage{})
+			<-wait
 
 			Convey("It reports them to 3scale", func() {
 				bBody, _ := ioutil.ReadAll(transport.LastRequest.Body)
@@ -219,7 +220,8 @@ func TestThreeScaleBrokerReportWorks(t *testing.T) {
 		Convey("When it contains units as an integer", func() {
 			res := NewResponse(200, "")
 			res.Header.Set("X-DL-units", "5")
-			broker.Report(res, BrokerMessage{})
+			wait, _ := broker.Report(res, BrokerMessage{})
+			<-wait
 
 			Convey("It reports them to 3scale", func() {
 				bBody, _ := ioutil.ReadAll(transport.LastRequest.Body)

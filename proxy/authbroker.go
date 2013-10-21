@@ -3,7 +3,6 @@ package proxy
 import (
 	"bytes"
 	"encoding/xml"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -34,7 +33,7 @@ type BrokerMessage map[string]string
 // incoming requests to decide if they should be routed or not.
 type AuthenticationBroker interface {
 	Authenticate(*http.Request) (bool, BrokerMessage, *ResponseError)
-	Report(*http.Response, BrokerMessage) error
+	Report(*http.Response, BrokerMessage) (chan bool, error)
 }
 
 // YesBroker is to be used for debug only.
@@ -45,7 +44,7 @@ func (y *YesBroker) Authenticate(req *http.Request) (toProxy bool, msg BrokerMes
 	return
 }
 
-func (y *YesBroker) Report(res *http.Response, msg BrokerMessage) (err error) {
+func (y *YesBroker) Report(res *http.Response, msg BrokerMessage) (wait chan bool, err error) {
 	return
 }
 
@@ -209,7 +208,8 @@ func round(f float64) int {
 	return int(f + 0.5)
 }
 
-func (brk *ThreeScaleBroker) Report(res *http.Response, msg BrokerMessage) (err error) {
+func (brk *ThreeScaleBroker) Report(res *http.Response, msg BrokerMessage) (wait chan bool, err error) {
+	wait = make(chan bool, 0)
 	appId := msg["appId"]
 	creditsHeaderValue := res.Header.Get(creditsHeader)
 	credits, creditsErr := strconv.ParseFloat(creditsHeaderValue, 64)
@@ -243,20 +243,13 @@ func (brk *ThreeScaleBroker) Report(res *http.Response, msg BrokerMessage) (err 
 		"transactions[0][usage][hits]": {strconv.Itoa(hits)},
 	}
 
-	repRes, err := brk.client.PostForm("https://su1.3scale.net/transactions.xml", values)
+	go func() {
+		_, err := brk.client.PostForm("https://su1.3scale.net/transactions.xml", values)
+		if err != nil {
+			logger.Warningf("Error reporting %d hits for app %s", hits, appId)
+		}
+		wait <- true
+	}()
 
-	// if there was an error in the HTTP request, return it
-	if err != nil {
-		return
-	}
-
-	// if 202, it's ok
-	if repRes.StatusCode == 202 {
-		logger.Debug("3scale report ok!")
-		return nil
-	}
-
-	// an unmanaged status code from 3scale, report it
-	return fmt.Errorf("Error reporting to 3scale API for app %s: status code %d", appId,
-		repRes.StatusCode)
+	return
 }

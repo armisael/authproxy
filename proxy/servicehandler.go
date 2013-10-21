@@ -200,7 +200,7 @@ func (h *ServiceHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	logger.Infom("Successful request", map[string]interface{}{"type": "request", "duration": duration, "status": res.StatusCode, "url": shortURL})
 
-	if reportErr := h.Broker.Report(res, msg); reportErr != nil {
+	if _, reportErr := h.Broker.Report(res, msg); reportErr != nil {
 		logger.Err("Report call failed, but the show must go on!")
 	}
 
