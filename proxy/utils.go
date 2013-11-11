@@ -1,13 +1,13 @@
 package proxy
 
 import (
-	"github.com/vad/go-bunyan/bunyan"
+	log "github.com/gigaroby/gopherlog"
 	"net/url"
 	"time"
 )
 
 var (
-	logger = bunyan.NewLogger("authproxy.proxy")
+	logger = log.GetLogger("authproxy.utils")
 )
 
 type Service url.URL

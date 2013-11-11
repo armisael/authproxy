@@ -4,9 +4,10 @@ import (
 	"flag"
 	"github.com/gigaroby/authproxy/authserver"
 	"github.com/gigaroby/authproxy/proxy"
-	"github.com/vad/go-bunyan/bunyan"
+	log "github.com/gigaroby/gopherlog"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
@@ -21,9 +22,22 @@ var (
 	serviceFile             = flag.String("services-file", "/etc/authproxy/services.json", "file to load services from")
 	backendsFile            = flag.String("backends-file", "/etc/authproxy/backends.json", "file to load backends from")
 	adminPath               = flag.String("admin", "admin", "change the admin path (it will be on '/THIS_VALUE/'")
+	sentryDSN               = flag.String("sentry-dsn", "", "set the sentry dsn to be used for logging purposes")
 	timeout                 = time.Duration(2) * time.Second // this should be configurable for every service
-	logger                  = bunyan.NewLogger("authproxy.main")
 )
+
+func setupLogging() *log.Logger {
+	logger := log.GetLogger("authproxy.main")
+	bunyanHandler := &log.BunyanHandler{Out: os.Stdout}
+	log.RegisterHandler(bunyanHandler, log.DEBUG)
+	if *sentryDSN != "" {
+		ravenHandler := log.NewRavenHandler("authproxy", *sentryDSN)
+		log.RegisterHandler(ravenHandler, log.ERROR)
+	} else {
+		log.Warning("sentry logging disabled. dsn was not provided")
+	}
+	return logger
+}
 
 func dialTimeout(network, addr string) (net.Conn, error) {
 	return net.DialTimeout(network, addr, timeout)
@@ -32,6 +46,8 @@ func dialTimeout(network, addr string) (net.Conn, error) {
 func main() {
 	flag.StringVar(&providerKey, "3scale-provider-key", "", "3scale provider key")
 	flag.Parse()
+
+	logger := setupLogging()
 
 	var broker proxy.AuthenticationBroker
 	if *yesBroker {

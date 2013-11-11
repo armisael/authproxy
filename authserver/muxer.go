@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/gigaroby/authproxy/admin"
 	"github.com/gigaroby/authproxy/proxy"
-	"github.com/vad/go-bunyan/bunyan"
+	log "github.com/gigaroby/gopherlog"
 	"io"
 	"net/http"
 	"net/http/pprof"
@@ -17,7 +17,7 @@ const (
 )
 
 var (
-	logger = bunyan.NewLogger("authproxy.admin")
+	logger = log.GetLogger("authproxy.admin")
 )
 
 type Handle struct {

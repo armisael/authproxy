@@ -3,13 +3,13 @@ package admin
 import (
 	"encoding/json"
 	"github.com/gigaroby/authproxy/proxy"
-	"github.com/vad/go-bunyan/bunyan"
+	log "github.com/gigaroby/gopherlog"
 	"net/http"
 	"strconv"
 )
 
 var (
-	logger = bunyan.NewLogger("authproxy.admin")
+	logger = log.GetLogger("authproxy.admin")
 )
 
 type CreditsJson struct {

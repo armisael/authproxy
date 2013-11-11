@@ -192,7 +192,7 @@ func (h *ServiceHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	shortURL := url[:int(math.Min(200, float64(len(url))))]
 	if err != nil {
 		resError := err.(ResponseError)
-		logger.Errm("Error proxing request", map[string]interface{}{"type": "request", "duration": duration, "status": resError.Status, "url": shortURL})
+		logger.Errorm("Error proxing request", map[string]interface{}{"type": "request", "duration": duration, "status": resError.Status, "url": shortURL})
 		writeError(rw, resError)
 		return
 	}
@@ -201,7 +201,7 @@ func (h *ServiceHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	logger.Infom("Successful request", map[string]interface{}{"type": "request", "duration": duration, "status": res.StatusCode, "url": shortURL})
 
 	if _, reportErr := h.Broker.Report(res, msg); reportErr != nil {
-		logger.Err("Report call failed, but the show must go on!")
+		logger.Error("Report call failed, but the show must go on!")
 	}
 
 	copyHeader(rw.Header(), res.Header)
