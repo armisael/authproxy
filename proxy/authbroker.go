@@ -209,7 +209,7 @@ func round(f float64) int {
 }
 
 func (brk *ThreeScaleBroker) Report(res *http.Response, msg BrokerMessage) (wait chan bool, err error) {
-	wait = make(chan bool, 0)
+	wait = make(chan bool, 1)
 	appId := msg["appId"]
 	creditsHeaderValue := res.Header.Get(creditsHeader)
 	credits, creditsErr := strconv.ParseFloat(creditsHeaderValue, 64)

@@ -9,6 +9,7 @@ import (
 	"github.com/vad/go-bunyan/bunyan"
 	"io"
 	"net/http"
+	"net/http/pprof"
 )
 
 const (
@@ -43,7 +44,7 @@ type responseJson struct {
 	Status  int    `json:"status"`
 }
 
-func NewHandle(broker proxy.AuthenticationBroker, proxyHandler http.Handler, adminPath string) *Handle {
+func NewHandle(broker proxy.AuthenticationBroker, proxyHandler http.Handler, adminPath string, profiler bool) *Handle {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/status", status)
 
@@ -51,6 +52,16 @@ func NewHandle(broker proxy.AuthenticationBroker, proxyHandler http.Handler, adm
 		creditsHandler := &admin.CreditsHandle{Broker: tBroker}
 		mux.Handle(fmt.Sprintf("/%s/credits", adminPath), creditsHandler)
 	}
+
+	if profiler {
+		mux.HandleFunc("/debug/pprof", pprof.Index)
+		mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+		mux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	}
+
 	mux.Handle("/", proxyHandler)
 
 	return &Handle{mux: mux}

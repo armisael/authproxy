@@ -16,6 +16,7 @@ const PROXY_PORT = ":8080"
 var (
 	providerKey             string
 	yesBroker               = flag.Bool("yes", false, "use the yes broker (instead of 3scale)")
+	enableProfiler          = flag.Bool("profile", false, "Enable the profiler")
 	providerKeyAlternatives = flag.String("3scale-provider-key-alt", "", "comma separated pairs (elements are column separated) of label:providerKey, used in API calls")
 	serviceFile             = flag.String("services-file", "/etc/authproxy/services.json", "file to load services from")
 	backendsFile            = flag.String("backends-file", "/etc/authproxy/backends.json", "file to load backends from")
@@ -61,7 +62,7 @@ func main() {
 	}
 
 	proxyHandler := proxy.NewProxyHandler(broker, transport, *serviceFile, *backendsFile)
-	authServer := authserver.NewHandle(broker, proxyHandler, *adminPath)
+	authServer := authserver.NewHandle(broker, proxyHandler, *adminPath, *enableProfiler)
 
 	server := &http.Server{
 		Addr:    PROXY_PORT,
