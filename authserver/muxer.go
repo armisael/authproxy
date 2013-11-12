@@ -17,7 +17,7 @@ const (
 )
 
 var (
-	logger = log.GetLogger("authproxy.admin")
+	logger = log.GetLogger("authproxy.authserver")
 )
 
 type Handle struct {

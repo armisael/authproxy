@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	logger = log.GetLogger("authproxy.utils")
+	logger = log.GetLogger("authproxy.proxy")
 )
 
 type Service url.URL
