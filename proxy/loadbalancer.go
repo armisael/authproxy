@@ -52,12 +52,6 @@ func (l *LoadBalancer) Start() error {
 	}
 }
 
-func (l *LoadBalancer) GetCache() []Service {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.cachedServices
-}
-
 func (l *LoadBalancer) WaitStop() {
 	<-l.Stop()
 }
