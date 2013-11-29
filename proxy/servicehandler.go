@@ -152,8 +152,14 @@ func (p *ServiceHandler) doProxyRequest(req *http.Request) (res *http.Response, 
 }
 
 func (h *ServiceHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	logger.Debug("request from ", req.RemoteAddr, " on ", req.URL)
-	var err error
+	var (
+		err     error
+		reqData = map[string]interface{}{
+			"remote_address": req.RemoteAddr,
+			"url":            req.URL.String(),
+		}
+	)
+	logger.Debugm("request initiated", reqData)
 
 	if len(req.URL.RawQuery) > 7001 {
 		writeError(rw, ResponseError{Message: "The requested URI is too long for a GET, please use POSTs",
@@ -190,15 +196,20 @@ func (h *ServiceHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	url := req.URL.String()
 	shortURL := url[:int(math.Min(200, float64(len(url))))]
+	reqData["url"] = shortURL
+	reqData["type"] = "request"
+	reqData["duration"] = duration
+
 	if err != nil {
 		resError := err.(ResponseError)
-		logger.Errorm("Error proxing request", map[string]interface{}{"type": "request", "duration": duration, "status": resError.Status, "url": shortURL})
+		reqData["status"] = resError.Status
+		logger.Errorm("error proxing request", reqData)
 		writeError(rw, resError)
 		return
 	}
 	defer res.Body.Close()
 
-	logger.Infom("Successful request", map[string]interface{}{"type": "request", "duration": duration, "status": res.StatusCode, "url": shortURL})
+	logger.Infom("request completed successfully", reqData)
 
 	if _, reportErr := h.Broker.Report(res, msg); reportErr != nil {
 		logger.Error("Report call failed, but the show must go on!")
