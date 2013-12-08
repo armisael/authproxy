@@ -199,6 +199,7 @@ func (h *ServiceHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	reqData["url"] = shortURL
 	reqData["type"] = "request"
 	reqData["duration"] = duration
+	reqData["status"] = res.StatusCode
 
 	if err != nil {
 		resError := err.(ResponseError)
