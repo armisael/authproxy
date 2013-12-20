@@ -104,6 +104,26 @@ func TestThreeScaleBrokerAuthenticateLimits(t *testing.T) {
                 </usage_report>
               </usage_reports>
         </status>`
+	bodyDailyMonthly :=
+		`<?xml version="1.0" encoding="UTF-8"?>
+        <status>
+            <authorized>true</authorized>
+            <plan>Default</plan>
+            <usage_reports>
+                <usage_report metric="hits" period="month">
+                    <period_start>2013-10-01 00:00:00 +0000</period_start>
+                    <period_end>2013-11-01 00:00:00 +0000</period_end>
+                    <max_value>100</max_value>
+                    <current_value>10</current_value>
+                </usage_report>
+                <usage_report metric="hits" period="day">
+                    <period_start>2013-10-01 00:00:00 +0000</period_start>
+                    <period_end>2013-10-02 00:00:00 +0000</period_end>
+                    <max_value>20</max_value>
+                    <current_value>2</current_value>
+                </usage_report>
+              </usage_reports>
+        </status>`
 
 	data := url.Values{}
 	data.Set("$app_id", "MyApp")
@@ -137,45 +157,19 @@ func TestThreeScaleBrokerAuthenticateLimits(t *testing.T) {
 				So(msg["creditsReset"], ShouldEqual, "2013-11-01 00:00:00 +0000")
 			})
 		})
+		Convey("When the user has both daily and monthly limits", func() {
+			factory := &FactoryTransport{Response: NewResponse(200, bodyDailyMonthly)}
+			broker := noProviderBroker(factory)
+			_, msg, _ := broker.Authenticate(req)
+
+			Convey("Then the Authenticate() should read credits left correctly", func() {
+				So(msg["creditsLeft"], ShouldEqual, "18")
+			})
+			Convey("Then the Authenticate() should read next credit reset correctly", func() {
+				So(msg["creditsReset"], ShouldEqual, "2013-10-02 00:00:00 +0000")
+			})
+		})
 	})
-}
-
-func TestThreeScaleBrokerAuthenticateWorksWithBothDailyAndMonthlyLimits(t *testing.T) {
-	// ATM we prefer daily over monthly. Probably we should check the lower one (the one with current_value near max_value)
-	body :=
-		`<?xml version="1.0" encoding="UTF-8"?>
-        <status>
-            <authorized>true</authorized>
-            <plan>Default</plan>
-            <usage_reports>
-                <usage_report metric="hits" period="month">
-                    <period_start>2013-10-01 00:00:00 +0000</period_start>
-                    <period_end>2013-11-01 00:00:00 +0000</period_end>
-                    <max_value>100</max_value>
-                    <current_value>10</current_value>
-                </usage_report>
-                <usage_report metric="hits" period="day">
-                    <period_start>2013-10-01 00:00:00 +0000</period_start>
-                    <period_end>2013-10-02 00:00:00 +0000</period_end>
-                    <max_value>20</max_value>
-                    <current_value>2</current_value>
-                </usage_report>
-              </usage_reports>
-        </status>`
-	factory := &FactoryTransport{Response: NewResponse(200, body)}
-	broker := noProviderBroker(factory)
-
-	data := url.Values{}
-	data.Set("$app_id", "MyApp")
-	data.Set("$app_key", "MyKey")
-
-	req, _ := http.NewRequest("POST", "http://example.com", strings.NewReader(data.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	_, msg, _ := broker.Authenticate(req)
-
-	if msg["creditsLeft"] != "18" {
-		t.Error("Expected 18 credits left, got", msg["creditsLeft"], ". Perhaps it read monthly limits instead")
-	}
 }
 
 func TestThreeScaleBrokerReportSetsHeaders(t *testing.T) {
