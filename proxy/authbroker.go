@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -122,7 +123,6 @@ func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey, providerLabel, method
 	values.Set("app_id", appId)
 	values.Set("app_key", appKey)
 	values.Set("provider_key", providerKey)
-	values.Set("usage[hits]", "1")
 	if methodName != "" {
 		values.Set(fmt.Sprintf("usage[%s]", methodName), "1")
 	}
@@ -130,6 +130,7 @@ func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey, providerLabel, method
 	msg = map[string]string{
 		"appId":       appId,
 		"providerKey": providerKey,
+		"method":      methodName,
 	}
 
 	authReq, _ := http.NewRequest("GET", "https://su1.3scale.net/transactions/authorize.xml", nil)
@@ -195,7 +196,7 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, msg 
 			Status: 401, Code: "error.missingParameter"}
 		return
 	}
-	metricName := req.URL.Path
+	metricName := strings.TrimPrefix(req.URL.Path, "/")
 
 	status, msg, err := brk.DoAuthenticate(appId, appKey, providerLabel, metricName)
 
@@ -241,11 +242,16 @@ func (brk *ThreeScaleBroker) Report(res *http.Response, msg BrokerMessage) (wait
 	if msg["creditsReset"] != "" {
 		res.Header[creditsResetHeader] = []string{msg["creditsReset"]}
 	}
+	metric := msg["metricName"]
+	if metric == "" {
+		metric = "hits"
+	}
+	transactionMetric := fmt.Sprintf("transactions[0][usage][%s]", metric)
 
 	values := url.Values{
-		"provider_key":                 {msg["providerKey"]},
-		"transactions[0][app_id]":      {appId},
-		"transactions[0][usage][hits]": {strconv.Itoa(hits)},
+		"provider_key":            {msg["providerKey"]},
+		"transactions[0][app_id]": {appId},
+		transactionMetric:         {strconv.Itoa(hits)},
 	}
 
 	go func() {

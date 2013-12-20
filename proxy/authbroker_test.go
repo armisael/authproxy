@@ -67,9 +67,8 @@ func TestThreeScaleBrokerAuthenticate(t *testing.T) {
 				So(query.Get("app_key"), ShouldEqual, "MyKey")
 			})
 
-			Convey("Then the request should send the 'metrics'", func() {
-				So(query.Get("usage[hits]"), ShouldEqual, "1")
-				So(query.Get("usage[/datatxt/nex/v1]"), ShouldEqual, "1")
+			Convey("Then the request should send the 'method name'", func() {
+				So(query.Get("usage[datatxt/nex/v1]"), ShouldEqual, "1")
 			})
 		})
 	})
@@ -206,28 +205,30 @@ func TestThreeScaleBrokerReportWorks(t *testing.T) {
 		Convey("When it contains units as a floating point number", func() {
 			res := NewResponse(200, "")
 			res.Header.Set("X-DL-units", "0.02")
-			wait, _ := broker.Report(res, BrokerMessage{})
+			wait, _ := broker.Report(res, BrokerMessage{"metricName": "datatxt/nex/v1"})
 			<-wait
 
 			Convey("It reports them to 3scale", func() {
 				bBody, _ := ioutil.ReadAll(transport.LastRequest.Body)
 				body := string(bBody)
+				sub := url.QueryEscape("[usage][datatxt/nex/v1]") + "=20000"
 
-				So(body, ShouldContainSubstring, "usage%5D%5Bhits%5D=20000")
+				So(body, ShouldContainSubstring, sub)
 			})
 		})
 
 		Convey("When it contains units as an integer", func() {
 			res := NewResponse(200, "")
 			res.Header.Set("X-DL-units", "5")
-			wait, _ := broker.Report(res, BrokerMessage{})
+			wait, _ := broker.Report(res, BrokerMessage{"metricName": "datatxt/nex/v1"})
 			<-wait
 
 			Convey("It reports them to 3scale", func() {
 				bBody, _ := ioutil.ReadAll(transport.LastRequest.Body)
 				body := string(bBody)
+				sub := url.QueryEscape("[usage][datatxt/nex/v1]") + "=5000000"
 
-				So(body, ShouldContainSubstring, "usage%5D%5Bhits%5D=5000000")
+				So(body, ShouldContainSubstring, sub)
 			})
 		})
 	})
