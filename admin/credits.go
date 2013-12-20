@@ -41,7 +41,7 @@ func (h *CreditsHandle) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		res.Error = true
 		res.Message = "Missing parameter $app_id"
 	} else {
-		_, msg, err := h.Broker.DoAuthenticate(appId, "", providerLabel)
+		_, msg, err := h.Broker.DoAuthenticate(appId, "", providerLabel, "")
 
 		if err != nil {
 			logger.Info("Error connecting to the authentication backend: ", err.Error())

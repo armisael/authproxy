@@ -40,32 +40,43 @@ func noProviderBroker(transport http.RoundTripper) *ThreeScaleBroker {
 	return NewThreeScaleBroker("providerKey", nil, transport)
 }
 
-func TestThreeScaleBrokerPOSTRequests(t *testing.T) {
-	recorder := &RecordTransport{}
-	broker := noProviderBroker(recorder)
+func TestThreeScaleBrokerAuthenticate(t *testing.T) {
+	transport := &RecordTransport{}
+	broker := noProviderBroker(transport)
 
 	data := url.Values{}
 	data.Set("$app_id", "MyApp")
 	data.Set("$app_key", "MyKey")
 
-	req, _ := http.NewRequest("POST", "http://example.com", strings.NewReader(data.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	broker.Authenticate(req)
+	Convey("Given a proxy using the 3scale broker", t, func() {
+		// TODO[vad]: add a GET request
 
-	recorded := recorder.LastRequest
+		Convey("When a POST request to /datatxt/nex/v1 arrives", func() {
+			req, _ := http.NewRequest("POST", "http://example.com/datatxt/nex/v1", strings.NewReader(data.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			broker.Authenticate(req)
+			recorded := transport.LastRequest
 
-	if recorded.Method != "GET" {
-		t.Error("Expected GET to 3scale, got", req.Method)
-	}
+			Convey("Then there should be a GET request to 3scale", func() {
+				So(recorded.Method, ShouldEqual, "GET")
+			})
 
-	query := recorded.URL.Query()
-	if query.Get("app_id") != "MyApp" || query.Get("app_key") != "MyKey" {
-		t.Error("Missing app_id or app_key in 3scale API call")
-	}
+			query := recorded.URL.Query()
+			Convey("Then the request should have the right app_id and app_key", func() {
+				So(query.Get("app_id"), ShouldEqual, "MyApp")
+				So(query.Get("app_key"), ShouldEqual, "MyKey")
+			})
+
+			Convey("Then the request should send the 'metrics'", func() {
+				So(query.Get("usage[hits]"), ShouldEqual, "1")
+				So(query.Get("usage[/datatxt/nex/v1]"), ShouldEqual, "1")
+			})
+		})
+	})
 }
 
-func TestThreeScaleBrokerAuthenticateSupportsLimits(t *testing.T) {
-	body :=
+func TestThreeScaleBrokerAuthenticateLimits(t *testing.T) {
+	bodyDaily :=
 		`<?xml version="1.0" encoding="UTF-8"?>
         <status>
             <authorized>true</authorized>
@@ -79,28 +90,7 @@ func TestThreeScaleBrokerAuthenticateSupportsLimits(t *testing.T) {
                 </usage_report>
               </usage_reports>
         </status>`
-	factory := &FactoryTransport{Response: NewResponse(200, body)}
-	broker := noProviderBroker(factory)
-
-	data := url.Values{}
-	data.Set("$app_id", "MyApp")
-	data.Set("$app_key", "MyKey")
-
-	req, _ := http.NewRequest("POST", "http://example.com", strings.NewReader(data.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	_, msg, _ := broker.Authenticate(req)
-
-	if msg["creditsLeft"] != "9999998" {
-		t.Error("Expected 9999998 credits left, got", msg["creditsLeft"])
-	}
-
-	if msg["creditsReset"] != "2013-10-02 00:00:00 +0000" {
-		t.Error("Resets expected to be '2013-10-02 00:00:00 +0000', got", msg["creditsReset"])
-	}
-}
-
-func TestThreeScaleBrokerAuthenticateWorksWithMonthlyLimits(t *testing.T) {
-	body :=
+	bodyMonthly :=
 		`<?xml version="1.0" encoding="UTF-8"?>
         <status>
             <authorized>true</authorized>
@@ -114,8 +104,6 @@ func TestThreeScaleBrokerAuthenticateWorksWithMonthlyLimits(t *testing.T) {
                 </usage_report>
               </usage_reports>
         </status>`
-	factory := &FactoryTransport{Response: NewResponse(200, body)}
-	broker := noProviderBroker(factory)
 
 	data := url.Values{}
 	data.Set("$app_id", "MyApp")
@@ -123,15 +111,33 @@ func TestThreeScaleBrokerAuthenticateWorksWithMonthlyLimits(t *testing.T) {
 
 	req, _ := http.NewRequest("POST", "http://example.com", strings.NewReader(data.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	_, msg, _ := broker.Authenticate(req)
 
-	if msg["creditsLeft"] != "90" {
-		t.Error("Expected 90 credits left, got", msg["creditsLeft"])
-	}
+	Convey("Given a user with limits", t, func() {
+		Convey("When the user has daily limits", func() {
+			factory := &FactoryTransport{Response: NewResponse(200, bodyDaily)}
+			broker := noProviderBroker(factory)
+			_, msg, _ := broker.Authenticate(req)
 
-	if msg["creditsReset"] != "2013-11-01 00:00:00 +0000" {
-		t.Error("Resets expected to be '2013-11-01 00:00:00 +0000', got", msg["creditsReset"])
-	}
+			Convey("Then the Authenticate() should read credits left correctly", func() {
+				So(msg["creditsLeft"], ShouldEqual, "9999998")
+			})
+			Convey("Then the Authenticate() should read next credit reset correctly", func() {
+				So(msg["creditsReset"], ShouldEqual, "2013-10-02 00:00:00 +0000")
+			})
+		})
+		Convey("When the user has monthly limits", func() {
+			factory := &FactoryTransport{Response: NewResponse(200, bodyMonthly)}
+			broker := noProviderBroker(factory)
+			_, msg, _ := broker.Authenticate(req)
+
+			Convey("Then the Authenticate() should read credits left correctly", func() {
+				So(msg["creditsLeft"], ShouldEqual, "90")
+			})
+			Convey("Then the Authenticate() should read next credit reset correctly", func() {
+				So(msg["creditsReset"], ShouldEqual, "2013-11-01 00:00:00 +0000")
+			})
+		})
+	})
 }
 
 func TestThreeScaleBrokerAuthenticateWorksWithBothDailyAndMonthlyLimits(t *testing.T) {

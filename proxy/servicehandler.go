@@ -64,7 +64,7 @@ func (p *ServiceHandler) requestToProxy(inreq *http.Request, proxyService Servic
 	// this proxy is going to work inside a LAN anyway
 	outreq.URL.Scheme = "http"
 	outreq.URL.Host = proxyService.Host
-	outreq.URL.Path = proxyService.Path + inreq.URL.Path
+	outreq.URL.Path = proxyService.Path
 
 	// we need to pass query params. In the future we can merge
 	//   inreq.RawQuery and proxyService.RawQuery
@@ -174,7 +174,6 @@ func (h *ServiceHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// } else { // strip that prefix
 	//  req.URL.Path = req.URL.Path[len(p.path):]
 	// }
-	req.URL.Path = ""
 
 	authorized, msg, err := h.Broker.Authenticate(req)
 

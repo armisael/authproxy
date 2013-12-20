@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"encoding/xml"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -113,7 +114,7 @@ func (brk *ThreeScaleBroker) getProviderKey(label string) (providerKey string) {
 	return
 }
 
-func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey, providerLabel string) (status ThreeXMLStatus, msg map[string]string, err *ResponseError) {
+func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey, providerLabel, methodName string) (status ThreeXMLStatus, msg map[string]string, err *ResponseError) {
 	values := url.Values{}
 
 	providerKey := brk.getProviderKey(providerLabel)
@@ -121,7 +122,10 @@ func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey, providerLabel string)
 	values.Set("app_id", appId)
 	values.Set("app_key", appKey)
 	values.Set("provider_key", providerKey)
-	// TODO[vad]: we should send Hits=1 too. ATM we go down to -1 requests left (and we show it to the user!)
+	values.Set("usage[hits]", "1")
+	if methodName != "" {
+		values.Set(fmt.Sprintf("usage[%s]", methodName), "1")
+	}
 
 	msg = map[string]string{
 		"appId":       appId,
@@ -191,8 +195,9 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, msg 
 			Status: 401, Code: "error.missingParameter"}
 		return
 	}
+	metricName := req.URL.Path
 
-	status, msg, err := brk.DoAuthenticate(appId, appKey, providerLabel)
+	status, msg, err := brk.DoAuthenticate(appId, appKey, providerLabel, metricName)
 
 	if err != nil {
 		return
