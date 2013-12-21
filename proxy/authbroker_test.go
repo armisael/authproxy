@@ -71,6 +71,18 @@ func TestThreeScaleBrokerAuthenticate(t *testing.T) {
 				So(query.Get("usage[datatxt/nex/v1]"), ShouldEqual, "1")
 			})
 		})
+
+		Convey("When a POST request to /datatxt/nex/v1/ arrives", func() {
+			req, _ := http.NewRequest("POST", "http://example.com/datatxt/nex/v1/", strings.NewReader(data.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			broker.Authenticate(req)
+			recorded := transport.LastRequest
+			query := recorded.URL.Query()
+
+			Convey("Then the request should send the 'method name', stripping the trailing slash", func() {
+				So(query.Get("usage[datatxt/nex/v1]"), ShouldEqual, "1")
+			})
+		})
 	})
 }
 

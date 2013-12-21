@@ -196,7 +196,7 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, msg 
 			Status: 401, Code: "error.missingParameter"}
 		return
 	}
-	metricName := strings.TrimPrefix(req.URL.Path, "/")
+	metricName := strings.Trim(req.URL.Path, "/")
 
 	status, msg, err := brk.DoAuthenticate(appId, appKey, providerLabel, metricName)
 
