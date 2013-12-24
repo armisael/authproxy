@@ -94,6 +94,7 @@ func (p *ServiceHandler) requestToProxy(inreq *http.Request, proxyService Servic
 		}
 		outreq.Header.Set("X-Forwarded-For", clientIP)
 	}
+	outreq.Host = proxyService.Host
 
 	return outreq
 }

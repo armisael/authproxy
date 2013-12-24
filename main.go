@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"github.com/gigaroby/authproxy/authserver"
 	"github.com/gigaroby/authproxy/proxy"
@@ -23,6 +24,7 @@ var (
 	backendsFile            = flag.String("backends-file", "/etc/authproxy/backends.json", "file to load backends from")
 	adminPath               = flag.String("admin", "admin", "change the admin path (it will be on '/THIS_VALUE/'")
 	sentryDSN               = flag.String("sentry-dsn", "", "set the sentry dsn to be used for logging purposes")
+	skipTLSVerify           = flag.Bool("skip-tls-verify", false, "skip the TLS check while connecting to backends")
 	timeout                 = time.Duration(2) * time.Second // this should be configurable for every service
 )
 
@@ -75,6 +77,9 @@ func main() {
 
 	transport := &http.Transport{
 		Dial: dialTimeout,
+	}
+	if *skipTLSVerify {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
 	proxyHandler := proxy.NewProxyHandler(broker, transport, *serviceFile, *backendsFile)
