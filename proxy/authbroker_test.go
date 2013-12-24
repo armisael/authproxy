@@ -47,6 +47,7 @@ func TestThreeScaleBrokerAuthenticate(t *testing.T) {
 	data := url.Values{}
 	data.Set("$app_id", "MyApp")
 	data.Set("$app_key", "MyKey")
+	data.Set("$provider", "MyProvider")
 
 	Convey("Given a proxy using the 3scale broker", t, func() {
 		// TODO[vad]: add a GET request
@@ -56,6 +57,7 @@ func TestThreeScaleBrokerAuthenticate(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			broker.Authenticate(req)
 			recorded := transport.LastRequest
+			So(recorded, ShouldNotBeNil)
 
 			Convey("Then there should be a GET request to 3scale", func() {
 				So(recorded.Method, ShouldEqual, "GET")
@@ -77,10 +79,47 @@ func TestThreeScaleBrokerAuthenticate(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			broker.Authenticate(req)
 			recorded := transport.LastRequest
+			So(recorded, ShouldNotBeNil)
+
 			query := recorded.URL.Query()
 
 			Convey("Then the request should send the 'method name', stripping the trailing slash", func() {
 				So(query.Get("usage[datatxt/nex/v1]"), ShouldEqual, "1")
+			})
+		})
+
+		Convey("When a POST request arrives", func() {
+			req, _ := http.NewRequest("POST", "http://example.com/datatxt/nex/v1/", strings.NewReader(data.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			broker.Authenticate(req)
+
+			Convey("Then the broker should remove $app_id, $app_key and $provider from the Body", func() {
+				So(req.FormValue("$app_id"), ShouldEqual, "")
+				So(req.FormValue("$app_key"), ShouldEqual, "")
+				So(req.FormValue("$provider"), ShouldEqual, "")
+			})
+		})
+
+		Convey("When a GET request arrives", func() {
+			req, _ := http.NewRequest("GET", "http://example.com/datatxt/nex/v1/?$app_id=MyApp&$app_key=MyKey&$provider=MyProvider", nil)
+			broker.Authenticate(req)
+			query := req.URL.Query()
+
+			Convey("Then the broker should remove $app_id, $app_key and $provider from the URL", func() {
+				So(query.Get("$app_id"), ShouldEqual, "")
+				So(query.Get("$app_key"), ShouldEqual, "")
+				So(query.Get("$provider"), ShouldEqual, "")
+			})
+		})
+
+		Convey("When a user GETs request has a repeated parameter", func() {
+			req, _ := http.NewRequest("GET", "http://example.com/datatxt/nex/v1/?$app_id=MyApp&$app_key=MyKey&$provider=MyProvider&text=1&text=2", nil)
+			broker.Authenticate(req)
+			query := req.URL.Query()
+
+			Convey("The parameters are not merged/deleted", func() {
+				So(query["text"], ShouldContain, "1")
+				So(query["text"], ShouldContain, "2")
 			})
 		})
 	})
@@ -140,11 +179,11 @@ func TestThreeScaleBrokerAuthenticateLimits(t *testing.T) {
 	data.Set("$app_id", "MyApp")
 	data.Set("$app_key", "MyKey")
 
-	req, _ := http.NewRequest("POST", "http://example.com", strings.NewReader(data.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
 	Convey("Given a user with limits", t, func() {
 		Convey("When the user has daily limits", func() {
+			req, _ := http.NewRequest("POST", "http://example.com", strings.NewReader(data.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 			factory := &FactoryTransport{Response: NewResponse(200, bodyDaily)}
 			broker := noProviderBroker(factory)
 			_, msg, _ := broker.Authenticate(req)
@@ -157,6 +196,9 @@ func TestThreeScaleBrokerAuthenticateLimits(t *testing.T) {
 			})
 		})
 		Convey("When the user has monthly limits", func() {
+			req, _ := http.NewRequest("POST", "http://example.com", strings.NewReader(data.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 			factory := &FactoryTransport{Response: NewResponse(200, bodyMonthly)}
 			broker := noProviderBroker(factory)
 			_, msg, _ := broker.Authenticate(req)
@@ -169,6 +211,9 @@ func TestThreeScaleBrokerAuthenticateLimits(t *testing.T) {
 			})
 		})
 		Convey("When the user has both daily and monthly limits", func() {
+			req, _ := http.NewRequest("POST", "http://example.com", strings.NewReader(data.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 			factory := &FactoryTransport{Response: NewResponse(200, bodyDailyMonthly)}
 			broker := noProviderBroker(factory)
 			_, msg, _ := broker.Authenticate(req)
@@ -217,7 +262,7 @@ func TestThreeScaleBrokerReportWorks(t *testing.T) {
 		Convey("When it contains units as a floating point number", func() {
 			res := NewResponse(200, "")
 			res.Header.Set("X-DL-units", "0.02")
-			wait, _ := broker.Report(res, BrokerMessage{"metricName": "datatxt/nex/v1"})
+			wait, _ := broker.Report(res, BrokerMessage{"method": "datatxt/nex/v1"})
 			<-wait
 
 			Convey("It reports them to 3scale", func() {
@@ -232,7 +277,7 @@ func TestThreeScaleBrokerReportWorks(t *testing.T) {
 		Convey("When it contains units as an integer", func() {
 			res := NewResponse(200, "")
 			res.Header.Set("X-DL-units", "5")
-			wait, _ := broker.Report(res, BrokerMessage{"metricName": "datatxt/nex/v1"})
+			wait, _ := broker.Report(res, BrokerMessage{"method": "datatxt/nex/v1"})
 			<-wait
 
 			Convey("It reports them to 3scale", func() {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gigaroby/authproxy/admin"
+	"github.com/gigaroby/authproxy/ioextra"
 	"github.com/gigaroby/authproxy/proxy"
 	log "github.com/gigaroby/gopherlog"
 	"io"
@@ -27,14 +28,6 @@ type Handle struct {
 func status(rw http.ResponseWriter, req *http.Request) {
 	rw.WriteHeader(200)
 	rw.Write([]byte("ok"))
-}
-
-type ClosingReader struct {
-	bytes.Reader
-}
-
-func (rnc ClosingReader) Close() error {
-	return nil
 }
 
 type responseJson struct {
@@ -79,7 +72,7 @@ func limitAndBufferBody(rw http.ResponseWriter, body io.ReadCloser, requestMaxSi
 
 	// we can't use NopCloser here, because we need to Seek after.
 	// ClosingReader (with its anonymous field) allows to do it
-	rc = &ClosingReader{*bytes.NewReader(buffer.Bytes())}
+	rc = ioextra.NewBufferizedClosingReader(buffer.Bytes())
 	return
 }
 

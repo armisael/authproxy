@@ -38,10 +38,10 @@ func TestProxyHandlerPaths(t *testing.T) {
 			req, _ := http.NewRequest("GET", "http://localhost/service100/v1/", nil)
 			proxy.ServeHTTP(rw, req)
 
-			Convey("It gets a 404", func() {
+			Convey("He gets a 404", func() {
 				So(rw.Code, ShouldEqual, 404)
 			})
-			Convey("It gets a valid JSON response", func() {
+			Convey("He gets a valid JSON response", func() {
 				var v map[string]interface{}
 
 				content, _ := ioutil.ReadAll(rw.Body)
@@ -53,8 +53,8 @@ func TestProxyHandlerPaths(t *testing.T) {
 			})
 		})
 
-		Convey("When he gets the right URL", func() {
-			Convey("It gets proxied to the right service", func() {
+		Convey("When he GETs the right URL", func() {
+			Convey("He gets proxied to the right service", func() {
 				rw := httptest.NewRecorder()
 				req, _ := http.NewRequest("GET", "http://localhost/service1/v1/", nil)
 				proxy.ServeHTTP(rw, req)
@@ -65,13 +65,50 @@ func TestProxyHandlerPaths(t *testing.T) {
 		})
 
 		Convey("When he forgets the trailing /", func() {
-			Convey("It gets proxied to the right service", func() {
+			Convey("He gets proxied to the right service", func() {
 				rw := httptest.NewRecorder()
 				req, _ := http.NewRequest("GET", "http://localhost/service1/v1", nil)
 				proxy.ServeHTTP(rw, req)
 				url := trans.LastRequest.URL
 				So(url.Host, ShouldEqual, "example.com")
 				So(url.Path, ShouldEqual, "/service1")
+			})
+		})
+
+		Convey("When he GETs a service that is under HTTPS", func() {
+			Convey("He gets proxied to the right service", func() {
+				rw := httptest.NewRecorder()
+				req, _ := http.NewRequest("GET", "http://localhost/service2/v1", nil)
+				proxy.ServeHTTP(rw, req)
+				url := trans.LastRequest.URL
+				So(url.Scheme, ShouldEqual, "https")
+				So(url.Host, ShouldEqual, "example.com")
+				So(url.Path, ShouldEqual, "/service2")
+			})
+		})
+	})
+}
+
+func TestProxyHandlerBackendErrors(t *testing.T) {
+
+	Convey("Given a user that queries an API endpoint", t, func() {
+		Convey("When he GETs a service with a backend that returns a 3xx", func() {
+			trans := &FactoryTransport{Response: NewResponse(301, "")}
+			proxy := NewProxyHandler(nil, trans, "test_data/services.json", "test_data/backends.json")
+
+			Convey("He gets an error", func() {
+				rw := httptest.NewRecorder()
+				req, _ := http.NewRequest("GET", "http://localhost/service2/v1", nil)
+				proxy.ServeHTTP(rw, req)
+				So(rw.Code, ShouldEqual, 502)
+
+				var v map[string]interface{}
+				content, _ := ioutil.ReadAll(rw.Body)
+				err := json.Unmarshal(content, &v)
+
+				So(err, ShouldBeNil)
+				So(v["error"], ShouldEqual, true)
+				So(v["code"], ShouldEqual, "error.badGateway")
 			})
 		})
 	})

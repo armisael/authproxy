@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"fmt"
+	"github.com/gigaroby/authproxy/ioextra"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -91,16 +92,31 @@ func parseRequestForApp(req *http.Request) (appId, appKey, providerLabel string)
 	switch req.Method {
 	case "GET":
 		{
-			reqValues := req.URL.Query()
-			appId = reqValues.Get("$app_id")
-			appKey = reqValues.Get("$app_key")
-			providerLabel = reqValues.Get("$provider")
+			values := req.URL.Query()
+			appId = values.Get("$app_id")
+			values.Del("$app_id")
+			appKey = values.Get("$app_key")
+			values.Del("$app_key")
+			providerLabel = values.Get("$provider")
+			values.Del("$provider")
+			req.URL.RawQuery = values.Encode()
 		}
 	default: // POST or PUT
 		{
-			appId = req.PostFormValue("$app_id")
-			appKey = req.PostFormValue("$app_key")
-			providerLabel = req.PostFormValue("$provider")
+			req.ParseForm()
+			values := req.PostForm
+
+			appId = values.Get("$app_id")
+			values.Del("$app_id")
+			appKey = values.Get("$app_key")
+			values.Del("$app_key")
+			providerLabel = values.Get("$provider")
+			values.Del("$provider")
+
+			req.Body = ioextra.NewBufferizedClosingReader([]byte(values.Encode()))
+			req.PostForm = nil
+			req.Form = nil
+			req.ParseForm()
 		}
 	}
 
@@ -242,11 +258,12 @@ func (brk *ThreeScaleBroker) Report(res *http.Response, msg BrokerMessage) (wait
 	if msg["creditsReset"] != "" {
 		res.Header[creditsResetHeader] = []string{msg["creditsReset"]}
 	}
-	metric := msg["metricName"]
+	metric := msg["method"]
 	if metric == "" {
 		metric = "hits"
 	}
 	transactionMetric := fmt.Sprintf("transactions[0][usage][%s]", metric)
+	logger.Infof("Reporting %d hits for metric '%s'", hits, transactionMetric)
 
 	values := url.Values{
 		"provider_key":            {msg["providerKey"]},

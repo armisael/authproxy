@@ -60,9 +60,7 @@ func (p *ServiceHandler) requestToProxy(inreq *http.Request, proxyService Servic
 	url := *inreq.URL
 	outreq.URL = &url
 
-	// force http for now
-	// this proxy is going to work inside a LAN anyway
-	outreq.URL.Scheme = "http"
+	outreq.URL.Scheme = proxyService.Scheme
 	outreq.URL.Host = proxyService.Host
 	outreq.URL.Path = proxyService.Path
 
@@ -208,6 +206,17 @@ func (h *ServiceHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	defer res.Body.Close()
+
+	if res.StatusCode > 299 && res.StatusCode < 400 {
+		resError := ResponseError{
+			Message: "can't connect to the backend server",
+			Status:  http.StatusBadGateway,
+			Code:    "error.badGateway",
+		}
+		logger.Errorm("Got a redirection from the backend, and we don't want redirections!", reqData)
+		writeError(rw, resError)
+		return
+	}
 
 	logger.Infom("request completed successfully", reqData)
 
