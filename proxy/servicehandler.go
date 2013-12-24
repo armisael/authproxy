@@ -135,8 +135,14 @@ func (p *ServiceHandler) doProxyRequest(req *http.Request) (res *http.Response, 
 	d = time.Now().Sub(start)
 	if err != nil {
 		netError, ok := err.(net.Error)
-		if ok && netError.Timeout() {
-			logger.Info("The Backend timed out: ", err.Error())
+		if ok {
+			if netError.Timeout() {
+				logger.Info("The Backend timed out: ", err.Error())
+			} else {
+				logger.Info("Network error connecting to the backend: ", err.Error())
+			}
+		} else {
+			logger.Info("Error in the backend request (not a Net error): ", err.Error())
 		}
 
 		outErr = ResponseError{
@@ -196,7 +202,11 @@ func (h *ServiceHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	reqData["url"] = shortURL
 	reqData["type"] = "request"
 	reqData["duration"] = duration
-	reqData["status"] = res.StatusCode
+	if res != nil {
+		reqData["status"] = res.StatusCode
+	} else {
+		reqData["status"] = -1
+	}
 
 	if err != nil {
 		resError := err.(ResponseError)

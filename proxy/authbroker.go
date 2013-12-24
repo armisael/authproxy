@@ -93,12 +93,14 @@ func parseRequestForApp(req *http.Request) (appId, appKey, providerLabel string)
 	case "GET":
 		{
 			values := req.URL.Query()
+
 			appId = values.Get("$app_id")
 			values.Del("$app_id")
 			appKey = values.Get("$app_key")
 			values.Del("$app_key")
 			providerLabel = values.Get("$provider")
 			values.Del("$provider")
+
 			req.URL.RawQuery = values.Encode()
 		}
 	default: // POST or PUT
@@ -113,9 +115,11 @@ func parseRequestForApp(req *http.Request) (appId, appKey, providerLabel string)
 			providerLabel = values.Get("$provider")
 			values.Del("$provider")
 
-			req.Body = ioextra.NewBufferizedClosingReader([]byte(values.Encode()))
+			content := []byte(values.Encode())
+			req.Body = ioextra.NewBufferizedClosingReader(content)
 			req.PostForm = nil
 			req.Form = nil
+			req.ContentLength = int64(len(content))
 			req.ParseForm()
 		}
 	}
