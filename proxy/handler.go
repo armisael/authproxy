@@ -59,7 +59,6 @@ func NewProxyHandler(b AuthenticationBroker, t http.RoundTripper, servicesFile, 
 	}
 
 	return mux
-
 }
 
 func copyHeader(dst, src http.Header) {
@@ -67,5 +66,12 @@ func copyHeader(dst, src http.Header) {
 	for k, vv := range src {
 		// NOTE: don't use Add here, it doesn't preserve the case: https://code.google.com/p/go/issues/detail?id=5022
 		dst[k] = vv
+	}
+	for _, k := range []string{"X-DL-Count", "X-DL-datagem-version"} {
+		s := dst.Get(k)
+		if s != "" {
+			dst.Del(k)
+			dst[k] = []string{s}
+		}
 	}
 }
