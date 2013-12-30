@@ -2,6 +2,8 @@ package proxy
 
 import (
 	"encoding/json"
+	"github.com/gigaroby/authproxy/aerrors"
+	"github.com/gigaroby/authproxy/authbroker"
 	gorillamux "github.com/gorilla/mux"
 	"io"
 	"math"
@@ -14,11 +16,11 @@ import (
 type ServiceHandler struct {
 	Path      string
 	Transport http.RoundTripper
-	Broker    AuthenticationBroker
+	Broker    authbroker.AuthenticationBroker
 	Balancer  LoadBalancer
 }
 
-func NewServiceHandler(name string, conf *ServiceConf, t http.RoundTripper, b AuthenticationBroker, lb *LoadBalancer) *ServiceHandler {
+func NewServiceHandler(name string, conf *ServiceConf, t http.RoundTripper, b authbroker.AuthenticationBroker, lb *LoadBalancer) *ServiceHandler {
 	return &ServiceHandler{
 		Path:      (*conf).Path,
 		Transport: t,
@@ -107,12 +109,8 @@ type JSONError struct {
 	Data    map[string]interface{} `json:"data"`
 }
 
-func writeError(rw http.ResponseWriter, err ResponseError) {
-	if err.ContentType != "" {
-		rw.Header().Set("Content-Type", err.ContentType)
-	} else {
-		rw.Header().Set("Content-Type", "application/json")
-	}
+func writeError(rw http.ResponseWriter, err aerrors.ResponseError) {
+	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(err.Status)
 	marshalled, _ := json.Marshal(JSONError{
 		Status:  err.Status,
@@ -146,7 +144,7 @@ func (p *ServiceHandler) doProxyRequest(req *http.Request) (res *http.Response, 
 			logger.Info("Error in the backend request (not a Net error): ", err.Error())
 		}
 
-		outErr = ResponseError{
+		outErr = aerrors.ResponseError{
 			Message: "can't connect to the backend server",
 			Status:  http.StatusBadGateway,
 			Code:    "error.badGateway",
@@ -167,13 +165,13 @@ func (h *ServiceHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	logger.Debugm("request initiated", reqData)
 
 	if len(req.URL.RawQuery) > 7001 {
-		writeError(rw, ResponseError{Message: "The requested URI is too long for a GET, please use POSTs",
+		writeError(rw, aerrors.ResponseError{Message: "The requested URI is too long for a GET, please use POSTs",
 			Status: 414, Code: "error.requestURITooLong"})
 		return
 	}
 
 	// if !strings.HasPrefix(req.URL.Path, p.path) {
-	//  writeError(rw, ResponseError{Message: "Not found",
+	//  writeError(rw, aerrors.ResponseError{Message: "Not found",
 	//      Status: 404, Code: "error.notFound"})
 	//  return
 	// } else { // strip that prefix
@@ -183,7 +181,7 @@ func (h *ServiceHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	authorized, msg, err := h.Broker.Authenticate(req)
 
 	if !authorized {
-		writeError(rw, *err.(*ResponseError))
+		writeError(rw, *err.(*aerrors.ResponseError))
 		return
 	}
 
@@ -210,7 +208,7 @@ func (h *ServiceHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if err != nil {
-		resError := err.(ResponseError)
+		resError := err.(aerrors.ResponseError)
 		reqData["status"] = resError.Status
 		logger.Errorm("error proxing request", reqData)
 		writeError(rw, resError)
@@ -219,7 +217,7 @@ func (h *ServiceHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	defer res.Body.Close()
 
 	if res.StatusCode > 299 && res.StatusCode < 400 {
-		resError := ResponseError{
+		resError := aerrors.ResponseError{
 			Message: "can't connect to the backend server",
 			Status:  http.StatusBadGateway,
 			Code:    "error.badGateway",

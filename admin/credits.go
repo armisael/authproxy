@@ -2,7 +2,7 @@ package admin
 
 import (
 	"encoding/json"
-	"github.com/gigaroby/authproxy/proxy"
+	"github.com/gigaroby/authproxy/authbroker"
 	log "github.com/gigaroby/gopherlog"
 	"net/http"
 	"strconv"
@@ -26,7 +26,7 @@ type responseJson struct {
 }
 
 type CreditsHandle struct {
-	Broker *proxy.ThreeScaleBroker
+	Broker *authbroker.ThreeScaleBroker
 }
 
 func (h *CreditsHandle) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -56,7 +56,7 @@ func (h *CreditsHandle) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				res.Message = "Bad response from the authentication backend"
 				res.Code = "error.authenticationError"
 			} else {
-				data := &CreditsJson{CreditsLeft: hits / proxy.ThreeScaleHitsMultiplier, NextReset: msg["creditsReset"]}
+				data := &CreditsJson{CreditsLeft: hits / authbroker.ThreeScaleHitsMultiplier, NextReset: msg["creditsReset"]}
 				res.Data = data
 			}
 		}

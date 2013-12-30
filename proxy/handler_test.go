@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"encoding/json"
+	. "github.com/gigaroby/authproxy/testutils"
 	. "github.com/smartystreets/goconvey/convey"
 	"io/ioutil"
 	"net/http"

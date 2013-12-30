@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gigaroby/authproxy/admin"
+	"github.com/gigaroby/authproxy/authbroker"
 	"github.com/gigaroby/authproxy/ioextra"
-	"github.com/gigaroby/authproxy/proxy"
 	log "github.com/gigaroby/gopherlog"
 	"io"
 	"net/http"
@@ -37,11 +37,11 @@ type responseJson struct {
 	Status  int    `json:"status"`
 }
 
-func NewHandle(broker proxy.AuthenticationBroker, proxyHandler http.Handler, adminPath string, profiler bool) *Handle {
+func NewHandle(broker authbroker.AuthenticationBroker, proxyHandler http.Handler, adminPath string, profiler bool) *Handle {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/status", status)
 
-	if tBroker, ok := broker.(*proxy.ThreeScaleBroker); ok {
+	if tBroker, ok := broker.(*authbroker.ThreeScaleBroker); ok {
 		creditsHandler := &admin.CreditsHandle{Broker: tBroker}
 		mux.Handle(fmt.Sprintf("/%s/credits", adminPath), creditsHandler)
 	}

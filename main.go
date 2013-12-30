@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"github.com/gigaroby/authproxy/authbroker"
 	"github.com/gigaroby/authproxy/authserver"
 	"github.com/gigaroby/authproxy/proxy"
 	log "github.com/gigaroby/gopherlog"
@@ -51,9 +52,9 @@ func main() {
 
 	logger := setupLogging()
 
-	var broker proxy.AuthenticationBroker
+	var broker authbroker.AuthenticationBroker
 	if *yesBroker {
-		broker = &proxy.YesBroker{}
+		broker = &authbroker.YesBroker{}
 	} else {
 		if providerKey == "" {
 			logger.Fatal("Missing parameter --3scale-provider-key")
@@ -70,7 +71,7 @@ func main() {
 				pkAltsMap[pair[0]] = pair[1]
 			}
 		}
-		broker = proxy.NewThreeScaleBroker(providerKey, pkAltsMap, nil)
+		broker = authbroker.NewThreeScaleBroker(providerKey, pkAltsMap, nil)
 	}
 
 	// TODO[vad]: check if files exist

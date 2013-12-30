@@ -1,9 +1,10 @@
-package proxy
+package authbroker
 
 import (
 	"bytes"
 	"encoding/xml"
 	"fmt"
+	"github.com/gigaroby/authproxy/aerrors"
 	"github.com/gigaroby/authproxy/ioextra"
 	"net/http"
 	"net/url"
@@ -12,44 +13,8 @@ import (
 )
 
 const (
-	creditsHeader            = "X-DL-units"
-	creditsLeftHeader        = "X-DL-units-left"
-	creditsResetHeader       = "X-DL-units-reset"
 	ThreeScaleHitsMultiplier = 1e6
 )
-
-type ResponseError struct {
-	Status      int
-	Message     string
-	ContentType string
-	Code        string
-}
-
-func (r ResponseError) Error() string {
-	return r.Message
-}
-
-// a cache to pass parameters between Authenticate and Report
-type BrokerMessage map[string]string
-
-// A authentication broker is the component that authenticates
-// incoming requests to decide if they should be routed or not.
-type AuthenticationBroker interface {
-	Authenticate(*http.Request) (bool, BrokerMessage, *ResponseError)
-	Report(*http.Response, BrokerMessage) (chan bool, error)
-}
-
-// YesBroker is to be used for debug only.
-type YesBroker struct{}
-
-func (y *YesBroker) Authenticate(req *http.Request) (toProxy bool, msg BrokerMessage, err *ResponseError) {
-	toProxy = true
-	return
-}
-
-func (y *YesBroker) Report(res *http.Response, msg BrokerMessage) (wait chan bool, err error) {
-	return
-}
 
 // 3scale broker http://3scale.net
 type ThreeScaleBroker struct {
@@ -135,7 +100,7 @@ func (brk *ThreeScaleBroker) getProviderKey(label string) (providerKey string) {
 	return
 }
 
-func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey, providerLabel, methodName string) (status ThreeXMLStatus, msg map[string]string, err *ResponseError) {
+func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey, providerLabel, methodName string) (status ThreeXMLStatus, msg map[string]string, err *aerrors.ResponseError) {
 	values := url.Values{}
 
 	providerKey := brk.getProviderKey(providerLabel)
@@ -160,7 +125,7 @@ func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey, providerLabel, method
 	if err_ != nil {
 		//TODO[vad]: report 3scale's down
 		logger.Error("Error connecting to 3scale: ", err_.Error())
-		err = &ResponseError{Message: "Internal server error", Status: 500, Code: "error.internalServerError"}
+		err = &aerrors.ResponseError{Message: "Internal server error", Status: 500, Code: "error.internalServerError"}
 		return
 	}
 	defer authRes.Body.Close()
@@ -171,7 +136,7 @@ func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey, providerLabel, method
 	xml.Unmarshal(buf.Bytes(), &status)
 
 	if status.XMLName.Local == "error" {
-		err = &ResponseError{Message: status.Data, Status: 401, Code: "error.authenticationError"}
+		err = &aerrors.ResponseError{Message: status.Data, Status: 401, Code: "error.authenticationError"}
 		return
 	}
 
@@ -208,11 +173,11 @@ loop:
 	return
 }
 
-func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, msg BrokerMessage, err *ResponseError) {
+func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, msg BrokerMessage, err *aerrors.ResponseError) {
 	appId, appKey, providerLabel := parseRequestForApp(req)
 
 	if appKey == "" || appId == "" {
-		err = &ResponseError{Message: "missing parameters $app_id and/or $app_key",
+		err = &aerrors.ResponseError{Message: "missing parameters $app_id and/or $app_key",
 			Status: 401, Code: "error.missingParameter"}
 		return
 	}
@@ -225,7 +190,7 @@ func (brk *ThreeScaleBroker) Authenticate(req *http.Request) (toProxy bool, msg 
 	}
 
 	toProxy = status.Authorized
-	err = &ResponseError{Message: status.Reason, Status: 401, Code: "error.authenticationError"}
+	err = &aerrors.ResponseError{Message: status.Reason, Status: 401, Code: "error.authenticationError"}
 
 	return
 }

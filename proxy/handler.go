@@ -6,6 +6,8 @@ package proxy
 
 import (
 	"encoding/json"
+	"github.com/gigaroby/authproxy/aerrors"
+	"github.com/gigaroby/authproxy/authbroker"
 	gorillamux "github.com/gorilla/mux"
 	"io/ioutil"
 	"net/http"
@@ -19,7 +21,7 @@ type ServiceConf struct {
 type NotFoundHandler struct{}
 
 func (h *NotFoundHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	err := ResponseError{
+	err := aerrors.ResponseError{
 		Code:    "error.notFound",
 		Message: "API endpoint not found",
 		Status:  404,
@@ -28,13 +30,13 @@ func (h *NotFoundHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	writeError(rw, err)
 }
 
-func NewProxyHandler(b AuthenticationBroker, t http.RoundTripper, servicesFile, backendsFile string) http.Handler {
+func NewProxyHandler(b authbroker.AuthenticationBroker, t http.RoundTripper, servicesFile, backendsFile string) http.Handler {
 	if t == nil {
 		t = http.DefaultTransport
 	}
 
 	if b == nil {
-		b = &YesBroker{}
+		b = &authbroker.YesBroker{}
 	}
 
 	services := make(map[string]ServiceConf)
