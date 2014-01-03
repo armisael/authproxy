@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	requestMaxSize = 1 << 20
+	requestMaxSize = 1 << 20 // 1MB
 )
 
 var (

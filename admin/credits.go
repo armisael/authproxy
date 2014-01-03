@@ -33,6 +33,7 @@ func (h *CreditsHandle) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 
 	appId := query.Get("$app_id")
+	appKey := query.Get("$app_key")
 	providerLabel := query.Get("$provider")
 	res := &responseJson{}
 
@@ -41,7 +42,7 @@ func (h *CreditsHandle) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		res.Error = true
 		res.Message = "Missing parameter $app_id"
 	} else {
-		_, msg, err := h.Broker.DoAuthenticate(appId, "", providerLabel, "")
+		status, msg, err := h.Broker.DoAuthenticate(appId, appKey, providerLabel, "")
 
 		if err != nil {
 			logger.Info("Error connecting to the authentication backend: ", err.Error())
@@ -52,9 +53,14 @@ func (h *CreditsHandle) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			hits, err := strconv.Atoi(msg["creditsLeft"])
 
 			if err != nil {
-				res.Error = true
-				res.Message = "Bad response from the authentication backend"
-				res.Code = "error.authenticationError"
+				if status.Authorized { // infinite plan
+					data := &CreditsJson{CreditsLeft: -42, NextReset: ""}
+					res.Data = data
+				} else {
+					res.Error = true
+					res.Message = "Bad response from the authentication backend"
+					res.Code = "error.authenticationError"
+				}
 			} else {
 				data := &CreditsJson{CreditsLeft: hits / authbroker.ThreeScaleHitsMultiplier, NextReset: msg["creditsReset"]}
 				res.Data = data
