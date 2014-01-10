@@ -134,11 +134,23 @@ func TestThreeScaleBrokerAuthenticateLimits(t *testing.T) {
             <authorized>true</authorized>
             <plan>Default</plan>
             <usage_reports>
+                <usage_report metric="datagem/test" period="month">
+                    <period_start>2013-10-01 00:00:00 +0000</period_start>
+                    <period_end>2013-11-01 00:00:00 +0000</period_end>
+                    <max_value>100</max_value>
+                    <current_value>101</current_value>
+                </usage_report>
                 <usage_report metric="hits" period="month">
                     <period_start>2013-10-01 00:00:00 +0000</period_start>
                     <period_end>2013-11-01 00:00:00 +0000</period_end>
                     <max_value>100</max_value>
                     <current_value>10</current_value>
+                </usage_report>
+                <usage_report metric="datagem/test" period="day">
+                    <period_start>2013-10-01 00:00:00 +0000</period_start>
+                    <period_end>2013-10-02 00:00:00 +0000</period_end>
+                    <max_value>20</max_value>
+                    <current_value>21</current_value>
                 </usage_report>
                 <usage_report metric="hits" period="day">
                     <period_start>2013-10-01 00:00:00 +0000</period_start>
@@ -146,7 +158,7 @@ func TestThreeScaleBrokerAuthenticateLimits(t *testing.T) {
                     <max_value>20</max_value>
                     <current_value>2</current_value>
                 </usage_report>
-              </usage_reports>
+            </usage_reports>
         </status>`
 
 	data := url.Values{}

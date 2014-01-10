@@ -38,7 +38,7 @@ type ThreeXMLStatus struct {
 	Authorized   bool                  `xml:"authorized"`
 	Reason       string                `xml:"reason"`
 	Plan         string                `xml:"plan"`
-	UsageReports []ThreeXMLUsageReport `xml:"usage_reports>usage_report"`
+	UsageReports []*ThreeXMLUsageReport `xml:"usage_reports>usage_report"`
 }
 
 func NewThreeScaleBroker(provKey string, provKeyAlts map[string]string, transport http.RoundTripper) *ThreeScaleBroker {
@@ -140,26 +140,14 @@ func (brk *ThreeScaleBroker) DoAuthenticate(appId, appKey, providerLabel, method
 		return
 	}
 
-	usageReportsByPeriod := make(map[string][]*ThreeXMLUsageReport)
-	for _, report := range status.UsageReports {
-		usageReportsByPeriod[report.Period] = append(usageReportsByPeriod[report.Period], &report)
-	}
-
 	// find the report we want to show to the user and put it in "report"
 	var report *ThreeXMLUsageReport
-loop:
-	for _, period := range []string{"day", "month"} {
-		usageReports := usageReportsByPeriod[period]
-		switch len(usageReports) {
-		case 0: // no reports for this period, go on
-			continue
-		case 1:
-			{
-				report = usageReports[0]
-				break loop
+	for _, usageReport := range status.UsageReports {
+		if usageReport.Metric == "hits" {
+			if report != nil {
+				logger.Warning("Report for `hits' found multiple times for app_id ", appId)
 			}
-		default: // to many reports, why? we need to handle this!
-			logger.Warning("Too many usage reports for app_id ", appId, " in period", period, ". Expected 1, got ", len(usageReports))
+			report = usageReport
 		}
 	}
 
